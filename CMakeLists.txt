@@ -4,4 +4,6 @@ project(Babarchive)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(Babarchive src/main.cpp)
+add_executable(Babarchive src/main.cpp
+    src/Archive/Structs.h
+    src/Archive/Packer.h        src/Archive/Packer.cpp)
