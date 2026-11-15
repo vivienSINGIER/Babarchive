@@ -6,6 +6,9 @@
 
 namespace Archive
 {
+    static constexpr uint32_t g_magicNumber = ('B' << 0) | ('A' << 8) | ('B' << 16) | ('A' << 24);
+    static constexpr uint32_t g_currentVersion = 1;
+    
     enum FileType : uint8_t
     {
         Raw, Binary, Text
@@ -16,35 +19,50 @@ namespace Archive
         None = 0,
         Compressed = 0b00000001,
         Encrypted = 0b00000010,
+        BigEndian = 0b00000100,
+        LittleEndian = 0b00001000,
     };
     
     struct BaseHeader
     {
-        uint32_t magicNumber = 0xBABA;
-        uint32_t version = 1;
+        uint32_t magicNumber = g_magicNumber;
+        uint32_t version = g_currentVersion;
     
-        uint32_t archiveSize;
-        uint8_t descriptorListOffset;
+        uint64_t dataSize;
+        uint64_t descriptorListOffset;
     };
 
     struct FileDescriptor
     {
         uint32_t nameLength;
-        const char* name;
-        uint32_t offset;
+        std::string name;
+        uint64_t offset;
+    };
+    
+#pragma pack()
+    struct FileHeaderFixed
+    {
+        uint64_t uncompressedSize;
+        uint64_t compressedSize;
+        
+        uint8_t fileType;
+        uint8_t flags;
+        
+        uint32_t crc32;
+        
+        uint16_t extensionLength;
     };
     
     struct FileHeader
     {
-        uint32_t uncompressedSize;
-        uint32_t compressedSize;
-        uint8_t fileType;
-        
-        uint16_t extensionLength;
+        FileHeaderFixed fixed;
         std::string extension;
         
-        uint8_t flags;
-        uint32_t crc32;
+        
+        uint32_t DataSize() const
+        {
+            return sizeof(FileHeaderFixed) + sizeof(char) * fixed.extensionLength;
+        }
     };
     
 }

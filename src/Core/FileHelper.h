@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-#include "core/Error.h"
+#include "Error.h"
 
 namespace fs = std::filesystem;
 
