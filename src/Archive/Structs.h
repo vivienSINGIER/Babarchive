@@ -39,7 +39,7 @@ namespace Archive
         uint64_t offset;
     };
     
-#pragma pack()
+#pragma pack(push, 1)
     struct FileHeaderFixed
     {
         uint64_t uncompressedSize;
@@ -52,6 +52,7 @@ namespace Archive
         
         uint16_t extensionLength;
     };
+#pragma pack(pop)
     
     struct FileHeader
     {

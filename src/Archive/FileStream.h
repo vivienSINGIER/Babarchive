@@ -20,8 +20,9 @@ public:
     virtual ~FileStream() = default;
     
     virtual Error Open(fs::path const& _path, uint64_t _startOffset, uint64_t _count);
-    
     virtual Error Read(const char* _data, uint64_t count) = 0;
+    virtual bool IsAtEnd();
+    virtual bool IsFinished();
     
     uint64_t CursorOffset() const;
     uint64_t ReadCount() const;
@@ -35,12 +36,13 @@ protected:
     
     uint64_t m_cursorOffset;
     uint64_t m_readCount;
+    uint64_t m_readTotal;
 };
     
 class UncompressedFileStream : public FileStream
 {
 public:
-    Error Read(char* _data, uint64_t count) override;
+    Error Read(char* _data, uint64_t count);
 };
     
 class CompressedFileStream : public FileStream
@@ -50,12 +52,13 @@ public:
     ~CompressedFileStream();
     
     Error Open(fs::path const& _path, uint64_t _startOffset, uint64_t _count) override;
-    
-    Error Read(char* _data, uint64_t count) override;
+    Error Read(char* _data, uint64_t _count);
+    bool IsFinished() override;
 private:
     z_stream m_stream;
     char m_in[STREAM_BUFFER_SIZE];
-    char m_out[STREAM_BUFFER_SIZE];
+    uint64_t m_compressedLeft;
+    bool m_finished;
 };
     
 }
