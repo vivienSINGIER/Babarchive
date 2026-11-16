@@ -197,7 +197,7 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
      
      src.close();
      
-     std::ofstream out(m_location, std::ios::in | std::ios::binary);
+     std::ofstream out(m_location, std::ios::out | std::ios::binary);
      if (out.is_open() == false)
           return Error::Io("couldn't open archive file", m_location);
      out.seekp(header.descriptorListOffset);
@@ -221,6 +221,30 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
      descriptors.push_back(d);
      
      return Error::Ok();
+}
+
+Error Archive::Packer::Unpack(fs::path _unpackLocation)
+{
+     if (m_isOpen == false)
+          return Error::Io("cannot unpack archive file", m_location);
+     
+     std::ifstream src(m_location, std::ios::in | std::ios::binary);
+     if (src.is_open() == false)
+          return Error::Io("couldn't open archive file", m_location);
+     
+     for (auto& desc : m_descriptors)
+     {
+          src.seekg(desc.offset);
+          
+          FileHeaderFixed fixedHeader;
+          src.read(reinterpret_cast<char*>(&fixedHeader), sizeof(fixedHeader));
+          
+          FileHeader file_header;
+          file_header.fixed = fixedHeader;
+          src.read(reinterpret_cast<char*>(&file_header.extension), sizeof(file_header.fixed.extensionLength));
+          
+          char* data[file_header.fixed.uncompressedSize];
+     }
 }
 
 void Archive::Packer::SetChunkSize(uint32_t _chunkSize)

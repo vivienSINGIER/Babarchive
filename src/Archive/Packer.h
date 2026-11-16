@@ -22,6 +22,8 @@ namespace Archive
         
         Error Remove(std::string_view _name);
         
+        Error Unpack(fs::path _unpackLocation);
+        
         // FileStream Read(std::string const& _name);
         
         // Add Reads
