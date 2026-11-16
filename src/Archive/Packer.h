@@ -14,12 +14,15 @@ namespace Archive
     public:
         Packer();
         
+        Error Open(fs::path _location);
         Error Create(fs::path _location, std::string _name);
         
-        Error Add(fs::path _file, uint8_t _flags, std::string const& _name, FileType _type = FileType::Binary);
-        Error Add(const char* _data, uint32_t _count);
+        Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
+        Error Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
         
         Error Remove(std::string_view _name);
+        
+        // FileStream Read(std::string const& _name);
         
         // Add Reads
         
@@ -28,15 +31,18 @@ namespace Archive
     private:
         uint32_t m_chunkSize = 16384;
         fs::path m_location;
-        bool m_isCreated;
+        bool m_isOpen;
         
-        Error WriteChunk(std::ofstream& _out, unsigned char* _outBuff);
-        Error WriteCompressedChunk(std::ofstream& _out, unsigned char* _outBuff);
+        BaseHeader m_header;
+        std::vector<FileDescriptor> m_descriptors;
         
         Error WriteHeader(std::ofstream& _out, BaseHeader const& _header);
         Error WriteDescriptor(std::ofstream& _out, FileDescriptor const& _desc);
+        
         Error WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader);
-        // Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); Use zstream
+        Error WriteRawFile(std::ofstream& _out, const char* _data, uint32_t _count, FileHeader& _fHeader);
+        
+        Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); // Use zstream
         
         Error ReadHeader(std::ifstream& _in, BaseHeader& _header);
         Error ReadDescriptors(std::ifstream& _in, uint64_t _offset, std::vector<FileDescriptor>& _out);

@@ -8,39 +8,60 @@
 
 Archive::Packer::Packer()
 {
-     m_isCreated = false;   
+     m_isOpen = false;   
+}
+
+Error Archive::Packer::Open(fs::path _location)
+{
+     std::ifstream src(_location, std::ios::in | std::ios::binary);
+     if (src.is_open() == false)
+          return Error::Io("couldn't open archive file", _location);
+     
+     if (Error e = ReadHeader(src, m_header))
+          return e;
+     if (m_header.magicNumber != g_magicNumber)
+          return Error::Io("Read file doesn't fit the archive format, the file may be corrupted");
+     if (m_header.version != g_currentVersion)
+          Log::Log(LogType::Warning, "read archive version doesn't match the program");
+     if (Error e = ReadDescriptors(src, m_header.descriptorListOffset, m_descriptors))
+          return e;
+     
+     m_location = _location;
+     m_isOpen = true;
+     
+     return Error::Ok();
 }
 
 Error Archive::Packer::Create(fs::path _location, std::string _name)
 {
      fs::path path = _location / (_name + ".babar");
-     m_location = path;
      if (FileHelper::Exists(path))
      {
           Error e = Error::Io("file '" + _name + "' already exists", path);
           return e;
      }
-     
      if (FileHelper::WriteFileAtomic(path, ""))
      {
           Error e = Error::Io("couldn't create file '" + _name + "'", path);
           return e;
      }
-     m_isCreated = true;
+     
+     m_location = path;
+     m_isOpen = true;
      
      std::ofstream _out(path, std::ios::in | std::ios::binary);
      
-     BaseHeader header {g_magicNumber, g_currentVersion, 0, sizeof(BaseHeader)};
+     m_header = { g_magicNumber, g_currentVersion, 0, sizeof(BaseHeader) };
      
-     if (Error e = WriteHeader(_out, header))
+     if (Error e = WriteHeader(_out, m_header))
           return e;
      
      return Error::Ok();
 }
 
-Error Archive::Packer::Add(fs::path _file, uint8_t _flags, std::string const& _name, FileType _type)
+Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type)
 {
-     if (m_isCreated == false)
+     if (m_isOpen == false)
           return Error::Io("cannot write on non created archive file", m_location);
      
      if (!FileHelper::Exists(_file))
@@ -48,33 +69,15 @@ Error Archive::Packer::Add(fs::path _file, uint8_t _flags, std::string const& _n
      
      bool isDir = FileHelper::IsDir(_file);
      
-     BaseHeader header;
-     std::vector<FileDescriptor> descriptors;
-     
-     std::ifstream src(m_location, std::ios::in | std::ios::binary);
-     if (src.is_open() == false)
-          return Error::Io("couldn't open archive file", m_location);
-     
-     if (Error e = ReadHeader(src, header))
-          return e;
-     if (header.magicNumber != g_magicNumber)
-          return Error::Io("Read file doesn't fit the archive format, the file may be corrupted");
-     if (header.version != g_currentVersion)
-          Log::Log(LogType::Warning, "read archive version doesn't match the program");
-     if (Error e = ReadDescriptors(src, header.descriptorListOffset, descriptors))
-          return e;
-     
-     src.close();
-     
      std::ofstream out(m_location, std::ios::in | std::ios::binary);
      if (out.is_open() == false)
           return Error::Io("couldn't open archive file", m_location);
-     out.seekp(header.descriptorListOffset);
+     out.seekp(m_header.descriptorListOffset);
      
      Error err = Error::Io("Failed to add file/s to archive", _file);
      
      // Check for duplicates
-     if (CheckDuplicates(descriptors, _name))
+     if (CheckDuplicates(m_descriptors, _name))
           return Error::Io("file '" + _name + "' already exists in archive", m_location);
      if (isDir)
      {
@@ -89,7 +92,7 @@ Error Archive::Packer::Add(fs::path _file, uint8_t _flags, std::string const& _n
                
                std::string name = FileHelper::NormalizePath(_name / FileHelper::RelativeTo(f, _file)).string();
                
-               if (CheckDuplicates(descriptors, name))
+               if (CheckDuplicates(m_descriptors, name))
                     return Error::Io("file '" + name + "' already exists in archive", m_location);
           }
      }
@@ -116,7 +119,7 @@ Error Archive::Packer::Add(fs::path _file, uint8_t _flags, std::string const& _n
           if (Error e = WriteFile(out, in, fHeader))
                err.details.push_back(e.Format());
           
-          descriptors.push_back(d);
+          m_descriptors.push_back(d);
      }
      else // Loop over each file in given directory
      {
@@ -149,26 +152,80 @@ Error Archive::Packer::Add(fs::path _file, uint8_t _flags, std::string const& _n
                if (Error e = WriteFile(out, in, fHeader))
                     err.details.push_back(e.Format());
           
-               descriptors.push_back(d);
+               m_descriptors.push_back(d);
           }
      }
      
-     header.dataSize += (uint64_t)out.tellp() - header.descriptorListOffset;
-     header.descriptorListOffset = out.tellp();
+     m_header.dataSize += (uint64_t)out.tellp() - m_header.descriptorListOffset;
+     m_header.descriptorListOffset = out.tellp();
      
      // Write descriptor list
-     for (auto& desc : descriptors)
+     for (auto& desc : m_descriptors)
      {
           if (Error e = WriteDescriptor(out, desc))
                err.details.push_back(e.Format());
      }
      
-     if (Error e = WriteHeader(out, header))
+     if (Error e = WriteHeader(out, m_header))
           e.details.push_back(e.Format());
      
      if (err.details.size() > 0)
           return err;
      return Error::Ok();
+}
+
+Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type)
+{
+     if (m_isOpen == false)
+          return Error::Io("cannot write on non created archive file", m_location);
+     
+     BaseHeader header;
+     std::vector<FileDescriptor> descriptors;
+     
+     std::ifstream src(m_location, std::ios::in | std::ios::binary);
+     if (src.is_open() == false)
+          return Error::Io("couldn't open archive file", m_location);
+     
+     if (Error e = ReadHeader(src, header))
+          return e;
+     if (header.magicNumber != g_magicNumber)
+          return Error::Io("Read file doesn't fit the archive format, the file may be corrupted");
+     if (header.version != g_currentVersion)
+          Log::Log(LogType::Warning, "read archive version doesn't match the program");
+     if (Error e = ReadDescriptors(src, header.descriptorListOffset, descriptors))
+          return e;
+     
+     src.close();
+     
+     std::ofstream out(m_location, std::ios::in | std::ios::binary);
+     if (out.is_open() == false)
+          return Error::Io("couldn't open archive file", m_location);
+     out.seekp(header.descriptorListOffset);
+          
+     Error err = Error::Io("Failed to add file/s to archive");
+     
+     FileHeader fHeader;
+     fHeader.extension = "";
+     fHeader.fixed.extensionLength = 0;
+     fHeader.fixed.fileType = _type;
+     fHeader.fixed.flags = _flags;
+          
+     FileDescriptor d;
+     d.offset = out.tellp();
+     d.nameLength = _name.length();
+     d.name = _name;
+          
+     if (Error e = WriteRawFile(out, _data, _count, fHeader))
+          err.details.push_back(e.Format());
+          
+     descriptors.push_back(d);
+     
+     return Error::Ok();
+}
+
+void Archive::Packer::SetChunkSize(uint32_t _chunkSize)
+{
+     m_chunkSize = _chunkSize;
 }
 
 uint32_t Archive::Packer::GetChunkSize() const
@@ -178,7 +235,7 @@ uint32_t Archive::Packer::GetChunkSize() const
 
 Error Archive::Packer::WriteHeader(std::ofstream& _out, BaseHeader const& _header)
 {
-     if (m_isCreated == false)
+     if (m_isOpen == false)
           return Error::Io("cannot write on non created archive file", m_location);
      
      _out.seekp(0);
@@ -242,9 +299,53 @@ Error Archive::Packer::WriteFile(std::ofstream& _out, std::ifstream& _in, FileHe
      return Error::Ok();
 }
 
+Error Archive::Packer::WriteRawFile(std::ofstream& _out, const char* _data, uint32_t _count, FileHeader& _fHeader)
+{
+     std::streampos pos = _out.tellp();
+     std::streampos dataPos = pos + std::streampos(_fHeader.DataSize());
+     
+     _out.seekp(dataPos);
+     
+     std::string chunk;
+     chunk.resize(m_chunkSize);
+     
+     uLong crc = crc32(0L, Z_NULL, 0);
+     
+     _fHeader.fixed.compressedSize = 0;
+     _fHeader.fixed.uncompressedSize = 0;
+     
+     uint32_t toWrite = _count;
+     uint32_t dataCursor = 0;
+     
+     while (toWrite > 0)
+     {
+          uint32_t count = std::min(toWrite, m_chunkSize);
+          
+          crc = crc32(crc, reinterpret_cast<const Bytef*>(_data + dataCursor), count);
+          
+          _out.write(_data + dataCursor, count);
+          toWrite -= count;
+          dataCursor += count;
+     }
+     
+     _fHeader.fixed.compressedSize = _fHeader.fixed.uncompressedSize;
+     _fHeader.fixed.crc32 = (uint32_t)crc;
+     
+     // Write header
+     _out.seekp(pos);
+     _out.write(reinterpret_cast<const char*>(&_fHeader), sizeof(FileHeaderFixed));
+     _out.write(_fHeader.extension.data(), _fHeader.fixed.extensionLength);
+     _out.seekp(dataPos + std::streampos(_fHeader.fixed.uncompressedSize)); // return cursor to end of file data to maintain loo^p integrity
+     
+     if (!_out)
+          return Error::Io("couldn't write file in archive", m_location);
+     
+     return Error::Ok();
+}
+
 Error Archive::Packer::ReadHeader(std::ifstream& _in, BaseHeader& _header)
 {
-     if (m_isCreated == false)
+     if (m_isOpen == false)
           return Error::Io("cannot read non created archive file", m_location);
      
      _in.seekg(0);
@@ -258,7 +359,7 @@ Error Archive::Packer::ReadHeader(std::ifstream& _in, BaseHeader& _header)
 
 Error Archive::Packer::ReadDescriptors(std::ifstream& _in, uint64_t _offset, std::vector<FileDescriptor>& _out)
 {
-     if (m_isCreated == false)
+     if (m_isOpen == false)
           return Error::Io("cannot read non created archive file", m_location);
      
      uint64_t size = GetFileSize();
@@ -299,7 +400,7 @@ Error Archive::Packer::ReadDescriptors(std::ifstream& _in, uint64_t _offset, std
 
 Error Archive::Packer::ReadFileHeader(std::ifstream& _in, uint64_t _offset, FileHeader& _header)
 {
-     if (m_isCreated == false)
+     if (m_isOpen == false)
           return Error::Io("cannot read non created archive file", m_location);
      
      uint64_t size = GetFileSize();
@@ -318,7 +419,7 @@ Error Archive::Packer::ReadFileHeader(std::ifstream& _in, uint64_t _offset, File
 
 uint64_t Archive::Packer::GetFileSize()
 {
-     if (m_isCreated == false)
+     if (m_isOpen == false)
           return 0;
      
      return fs::file_size(m_location);
