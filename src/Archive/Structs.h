@@ -58,7 +58,6 @@ namespace Archive
         FileHeaderFixed fixed;
         std::string extension;
         
-        
         uint32_t DataSize() const
         {
             return sizeof(FileHeaderFixed) + sizeof(char) * fixed.extensionLength;
