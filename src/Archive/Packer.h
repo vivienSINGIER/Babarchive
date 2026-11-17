@@ -20,7 +20,7 @@ namespace Archive
         Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
         Error Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
         
-        // Error Remove(std::string_view _name);
+        Error Remove(std::string_view _name);
         
         Error Unpack(fs::path _unpackLocation);
         
