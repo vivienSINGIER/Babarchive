@@ -25,6 +25,10 @@ namespace Archive
         
         Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream);
         
+        Error Unpack(fs::path _unpackLocation);
+        
+        // FileStream Read(std::string const& _name);
+        
         // Add Reads
         
         void SetChunkSize(uint32_t _chunkSize);
@@ -48,6 +52,7 @@ namespace Archive
         Error ReadHeader(std::ifstream& _in, BaseHeader& _header);
         Error ReadDescriptors(std::ifstream& _in, uint64_t _offset, std::vector<FileDescriptor>& _out);
         Error ReadFileHeader(std::ifstream& _in, uint64_t _offset, FileHeader& _header);
+        Error ExtractFile(std::ifstream& _in, std::ofstream& _out, FileHeader const& _fHeader);
         
         // Helpers
         uint64_t GetFileSize();

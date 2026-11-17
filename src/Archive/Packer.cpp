@@ -17,22 +17,27 @@ Error Archive::Packer::Open(fs::path _location)
      std::ifstream src(_location, std::ios::in | std::ios::binary);
      if (src.is_open() == false)
           return Error::Io("couldn't open archive file", _location);
-     
-     m_isOpen = true;
+
+     // Read helpers require an open archive with a valid location
      m_location = _location;
+     m_isOpen = true;
      m_descriptors.clear();
-     
-     if (Error e = ReadHeader(src, m_header))
-          return e;
-     if (m_header.magicNumber != g_magicNumber)
-          return Error::Io("Read file doesn't fit the archive format, the file may be corrupted");
-     if (m_header.version != g_currentVersion)
+
+     Error e = ReadHeader(src, m_header);
+     if (!e && m_header.magicNumber != g_magicNumber)
+          e = Error::Io("Read file doesn't fit the archive format, the file may be corrupted", _location);
+     if (!e && m_header.version != g_currentVersion)
           Log::Log(LogType::Warning, "read archive version doesn't match the program");
-     if (Error e = ReadDescriptors(src, m_header.descriptorListOffset, m_descriptors))
-          return e;
-     
-     
-     return Error::Ok();
+     if (!e)
+          e = ReadDescriptors(src, m_header.descriptorListOffset, m_descriptors);
+
+     if (e)
+     {
+          m_isOpen = false;
+          m_descriptors.clear();
+     }
+
+     return e;
 }
 
 Error Archive::Packer::Create(fs::path _location, std::string _name)
@@ -323,6 +328,152 @@ Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, s
      
      _stream = std::move(ptr);
      
+     return Error::Ok();
+}
+
+Error Archive::Packer::Unpack(fs::path _unpackLocation)
+{
+     if (m_isOpen == false)
+          return Error::Io("cannot unpack archive file", m_location);
+     
+     std::ifstream src(m_location, std::ios::in | std::ios::binary);
+     if (src.is_open() == false)
+          return Error::Io("couldn't open archive file", m_location);
+     
+     if (Error e = FileHelper::CreateDir(_unpackLocation))
+          return e;
+
+     fs::path const root = _unpackLocation.lexically_normal();
+     Error err = Error::Io("Failed to unpack file/s from archive", m_location);
+
+     for (auto& desc : m_descriptors)
+     {
+          fs::path rel = fs::path(desc.name).relative_path().lexically_normal();
+          fs::path dst = (root / rel).lexically_normal();
+          fs::path check = FileHelper::RelativeTo(dst, root);
+
+          if (rel.empty() || check.empty() || *check.begin() == "..")
+          {
+               err.details.push_back(Error::Io("invalid file name '" + desc.name + "' in archive, skipped", m_location).Format());
+               continue;
+          }
+
+          FileHeader fHeader;
+          if (Error e = ReadFileHeader(src, desc.offset, fHeader))
+          {
+               err.details.push_back(e.Format());
+               continue;
+          }
+
+          if (fHeader.fixed.flags & FileFlags::Encrypted)
+          {
+               err.details.push_back(Error::Io("encrypted files are not supported yet, skipped '" + desc.name + "'", m_location).Format());
+               continue;
+          }
+
+          if (Error e = FileHelper::CreateDir(dst.parent_path()))
+          {
+               err.details.push_back(e.Format());
+               continue;
+          }
+
+          std::ofstream out(dst, std::ios::out | std::ios::binary | std::ios::trunc);
+          if (out.is_open() == false)
+          {
+               err.details.push_back(Error::Io("couldn't create unpacked file", dst).Format());
+               continue;
+          }
+
+          if (Error e = ExtractFile(src, out, fHeader))
+          {
+               e.path = dst;
+               err.details.push_back(e.Format());
+          }
+     }
+
+     if (err.details.size() > 0)
+          return err;
+     return Error::Ok();
+}
+
+Error Archive::Packer::ExtractFile(std::ifstream& _in, std::ofstream& _out, FileHeader const& _fHeader)
+{
+     std::string chunk;
+     chunk.resize(m_chunkSize);
+
+     uLong crc = crc32(0L, Z_NULL, 0);
+     uint64_t written = 0;
+     uint64_t toRead = _fHeader.fixed.compressedSize;
+
+     if ((_fHeader.fixed.flags & FileFlags::Compressed) == 0)
+     {
+          while (toRead > 0)
+          {
+               std::streamsize count = (std::streamsize)std::min<uint64_t>(toRead, m_chunkSize);
+               if (!_in.read(chunk.data(), count))
+                    return Error::Io("unexpected end of archive while reading file data", m_location);
+
+               crc = crc32(crc, reinterpret_cast<const Bytef*>(chunk.data()), (uInt)count);
+               _out.write(chunk.data(), count);
+
+               toRead -= count;
+               written += count;
+          }
+     }
+     else
+     {
+          z_stream zs = {};
+          if (inflateInit(&zs) != Z_OK)
+               return Error::Io("couldn't initialize zlib inflate stream", m_location);
+
+          std::string outChunk;
+          outChunk.resize(m_chunkSize);
+
+          int ret = Z_OK;
+          while (ret != Z_STREAM_END && toRead > 0)
+          {
+               std::streamsize count = (std::streamsize)std::min<uint64_t>(toRead, m_chunkSize);
+               if (!_in.read(chunk.data(), count))
+               {
+                    inflateEnd(&zs);
+                    return Error::Io("unexpected end of archive while reading compressed data", m_location);
+               }
+               toRead -= count;
+
+               zs.next_in = reinterpret_cast<Bytef*>(chunk.data());
+               zs.avail_in = (uInt)count;
+
+               do
+               {
+                    zs.next_out = reinterpret_cast<Bytef*>(outChunk.data());
+                    zs.avail_out = m_chunkSize;
+
+                    ret = inflate(&zs, Z_NO_FLUSH);
+                    if (ret == Z_NEED_DICT || ret == Z_DATA_ERROR || ret == Z_MEM_ERROR || ret == Z_STREAM_ERROR)
+                    {
+                         inflateEnd(&zs);
+                         return Error::Io("corrupted compressed data", m_location);
+                    }
+
+                    uInt produced = m_chunkSize - zs.avail_out;
+                    crc = crc32(crc, reinterpret_cast<const Bytef*>(outChunk.data()), produced);
+                    _out.write(outChunk.data(), produced);
+                    written += produced;
+               } while (zs.avail_out == 0 && ret != Z_STREAM_END);
+          }
+
+          inflateEnd(&zs);
+          if (ret != Z_STREAM_END)
+               return Error::Io("compressed data stream is incomplete", m_location);
+     }
+
+     if (!_out)
+          return Error::Io("couldn't write unpacked file");
+     if (written != _fHeader.fixed.uncompressedSize)
+          return Error::Io("unpacked size doesn't match the file header, the archive may be corrupted", m_location);
+     if ((uint32_t)crc != _fHeader.fixed.crc32)
+          return Error::Io("crc32 mismatch, the archive may be corrupted", m_location);
+
      return Error::Ok();
 }
 
