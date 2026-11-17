@@ -19,3 +19,7 @@ add_executable(Babarchive src/main.cpp
 )
 
 target_link_libraries(Babarchive PRIVATE ZLIB::ZLIBSTATIC)
+
+# Run the program from the folder holding this CMakeLists (paths like "Test/..." are relative to it)
+target_compile_definitions(Babarchive PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(Babarchive PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")

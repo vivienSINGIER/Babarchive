@@ -1,6 +1,7 @@
 ﻿#include "Packer.h"
 
 #include <fstream>
+#include <sstream>
 
 #include "Structs.h"
 
@@ -77,8 +78,10 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
      bool isDir = FileHelper::IsDir(_file);
      
      std::ofstream out(m_location, std::ios::in | std::ios::binary);
+
      if (out.is_open() == false)
           return Error::Io("couldn't open archive file", m_location);
+
      out.seekp(m_header.descriptorListOffset);
      
      Error err = Error::Io("Failed to add file/s to archive", _file);
@@ -98,7 +101,8 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
                if (FileHelper::IsDir(f))
                     continue;
                
-               std::string name = FileHelper::NormalizePath(_name / FileHelper::RelativeTo(f, _file)).string();
+               // Stored names have no extension, it is kept in the file header and restored on unpack
+               std::string name = (fs::path(_name) / FileHelper::RelativeTo(f, _file)).lexically_normal().replace_extension().generic_string();
                
                if (CheckDuplicates(m_descriptors, name))
                     return Error::Io("file '" + name + "' already exists in archive", m_location);
@@ -111,78 +115,37 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
           std::ifstream in(_file, std::ios::in | std::ios::binary);
           if (in.is_open() == false)
                err.details.push_back(Error::Io("couldn't open targeted file", _file).Format());
-          
-          FileHeader fHeader;
-          fHeader.extension = FileHelper::ExtLower(_file);
-          fHeader.fixed.extensionLength = fHeader.extension.length();
-          fHeader.fixed.fileType = _type;
-          fHeader.fixed.flags = _flags;
-          
-          FileDescriptor d;
-          d.offset = out.tellp();
-          d.nameLength = _name.length();
-          d.name = _name;
-          
-          Error e;
-          if (_flags & Archive::FileFlags::Compressed)
-               e  = WriteFileCompressed(out, in, fHeader);
-          else
-               e = WriteFile(out, in, fHeader);
-          
-          if (e) 
+          else if (Error e = WriteEntry(out, in, _name, FileHelper::ExtLower(_file), _flags, _type))
                err.details.push_back(e.Format());
-               
-          
-          m_descriptors.push_back(d);
      }
      else // Loop over each file in given directory
      {
           std::vector<fs::path> files;
           if (Error e = FileHelper::ListDir(_file, files))
                err.details.push_back(e.Format());
-          
+
           for (auto& f : files)
           {
                if (FileHelper::IsDir(f))
                     continue;
-                
-               fs::path fPath = FileHelper::NormalizePath(_name / FileHelper::RelativeTo(f, _file));
-               
+
+               fs::path fPath = (fs::path(_name) / FileHelper::RelativeTo(f, _file)).lexically_normal().replace_extension();
+
                std::ifstream in(f, std::ios::in | std::ios::binary);
                if (in.is_open() == false)
+               {
                     err.details.push_back(Error::Io("couldn't open targeted file", f).Format());
-               
-               FileHeader fHeader;
-               fHeader.extension = FileHelper::ExtLower(f);
-               fHeader.fixed.extensionLength = fHeader.extension.length();
-               fHeader.fixed.fileType = _type;
-               fHeader.fixed.flags = _flags;
-          
-               FileDescriptor d;
-               d.offset = out.tellp();
-               d.nameLength = fPath.string().length();
-               d.name = fPath.string();
-               
-               if (Error e = WriteFile(out, in, fHeader))
+                    continue;
+               }
+
+               if (Error e = WriteEntry(out, in, fPath.generic_string(), FileHelper::ExtLower(f), _flags, _type))
                     err.details.push_back(e.Format());
-               
-               m_descriptors.push_back(d);
           }
      }
-     
-     m_header.dataSize += (uint64_t)out.tellp() - m_header.descriptorListOffset;
-     m_header.descriptorListOffset = out.tellp();
-     
-     // Write descriptor list
-     for (auto& desc : m_descriptors)
-     {
-          if (Error e = WriteDescriptor(out, desc))
-               err.details.push_back(e.Format());
-     }
-     
-     if (Error e = WriteHeader(out, m_header))
-          e.details.push_back(e.Format());
-     
+
+     if (Error e = WriteIndex(out))
+          err.details.push_back(e.Format());
+
      if (err.details.size() > 0)
           return err;
      return Error::Ok();
@@ -192,30 +155,86 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
 {
      if (m_isOpen == false)
           return Error::Io("cannot write on non created archive file", m_location);
-     
+
+     if (CheckDuplicates(m_descriptors, _name))
+          return Error::Io("file '" + _name + "' already exists in archive", m_location);
+
      std::ofstream out(m_location, std::ios::in | std::ios::binary);
      if (out.is_open() == false)
           return Error::Io("couldn't open archive file", m_location);
      out.seekp(m_header.descriptorListOffset);
-          
-     Error err = Error::Io("Failed to add file/s to archive");
-     
-     FileHeader fHeader;
-     fHeader.extension = "";
-     fHeader.fixed.extensionLength = 0;
+
+     Error err = Error::Io("Failed to add data to archive", m_location);
+
+     // Wrap the data in a stream so it goes through the same write path as files
+     std::istringstream in(std::string(_data, _count), std::ios::in | std::ios::binary);
+
+     if (Error e = WriteEntry(out, in, _name, "", _flags, _type))
+          err.details.push_back(e.Format());
+
+     if (Error e = WriteIndex(out))
+          err.details.push_back(e.Format());
+
+     if (err.details.size() > 0)
+          return err;
+     return Error::Ok();
+}
+
+Error Archive::Packer::WriteEntry(std::ofstream& _out, std::istream& _in, std::string const& _name, std::string const& _extension, uint8_t _flags, uint8_t _type)
+{
+     FileHeader fHeader{};
+     fHeader.extension = _extension;
+     fHeader.fixed.extensionLength = (uint16_t)_extension.length();
      fHeader.fixed.fileType = _type;
      fHeader.fixed.flags = _flags;
-          
+
      FileDescriptor d;
-     d.offset = out.tellp();
-     d.nameLength = _name.length();
+     d.offset = _out.tellp();
+     d.nameLength = (uint32_t)_name.length();
      d.name = _name;
-          
-     if (Error e = WriteRawFile(out, _data, _count, fHeader))
-          err.details.push_back(e.Format());
-          
+
+     Error e = (_flags & FileFlags::Compressed)
+          ? WriteFileCompressed(_out, _in, fHeader)
+          : WriteFile(_out, _in, fHeader);
+
+     if (e)
+     {
+          // Drop the partially written entry: the next one (or the index) will overwrite it
+          _out.clear();
+          _out.seekp(d.offset);
+          return e;
+     }
+
      m_descriptors.push_back(d);
-     
+     return Error::Ok();
+}
+
+Error Archive::Packer::WriteIndex(std::ofstream& _out)
+{
+     // _out must be positioned right after the last written file
+     uint64_t end = (uint64_t)_out.tellp();
+     m_header.dataSize = end - sizeof(BaseHeader);
+     m_header.descriptorListOffset = end;
+
+     for (auto& desc : m_descriptors)
+     {
+          if (Error e = WriteDescriptor(_out, desc))
+               return e;
+     }
+     uint64_t indexEnd = (uint64_t)_out.tellp();
+
+     if (Error e = WriteHeader(_out, m_header))
+          return e;
+
+     _out.close();
+
+     // Previous index may have been longer (failed entry overwritten), cut what's left of it
+     std::error_code ec;
+     if (fs::file_size(m_location, ec) > indexEnd && !ec)
+          fs::resize_file(m_location, indexEnd, ec);
+     if (ec)
+          return Error::Io("couldn't resize archive file", m_location);
+
      return Error::Ok();
 }
 
@@ -521,7 +540,7 @@ Error Archive::Packer::WriteDescriptor(std::ofstream& _out, FileDescriptor const
      return Error::Ok();
 }
 
-Error Archive::Packer::WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader)
+Error Archive::Packer::WriteFile(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader)
 {
      std::streampos pos = _out.tellp();
      std::streampos dataPos = pos + std::streampos(_fHeader.DataSize());
@@ -561,118 +580,72 @@ Error Archive::Packer::WriteFile(std::ofstream& _out, std::ifstream& _in, FileHe
      return Error::Ok();
 }
 
-Error Archive::Packer::WriteRawFile(std::ofstream& _out, const char* _data, uint64_t _count, FileHeader& _fHeader)
-{
-     std::streampos pos = _out.tellp();
-     std::streampos dataPos = pos + std::streampos(_fHeader.DataSize());
-     
-     _out.seekp(dataPos);
-     
-     std::string chunk;
-     chunk.resize(m_chunkSize);
-     
-     uLong crc = crc32(0L, Z_NULL, 0);
-     
-     _fHeader.fixed.compressedSize = 0;
-     _fHeader.fixed.uncompressedSize = 0;
-     
-     uint32_t toWrite = _count;
-     uint32_t dataCursor = 0;
-     
-     while (toWrite > 0)
-     {
-          uint32_t count = std::min(toWrite, m_chunkSize);
-          
-          crc = crc32(crc, reinterpret_cast<const Bytef*>(_data + dataCursor), count);
-          
-          _out.write(_data + dataCursor, count);
-          toWrite -= count;
-          dataCursor += count;
-     }
-     
-     _fHeader.fixed.compressedSize = _fHeader.fixed.uncompressedSize;
-     _fHeader.fixed.crc32 = (uint32_t)crc;
-     
-     // Write header
-     _out.seekp(pos);
-     _out.write(reinterpret_cast<const char*>(&_fHeader), sizeof(FileHeaderFixed));
-     _out.write(_fHeader.extension.data(), _fHeader.fixed.extensionLength);
-     _out.seekp(dataPos + std::streampos(_fHeader.fixed.uncompressedSize)); // return cursor to end of file data to maintain loo^p integrity
-     
-     if (!_out)
-          return Error::Io("couldn't write file in archive", m_location);
-     
-     return Error::Ok();
-}
-
-Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader)
+Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader)
 {
      z_stream zs{};
      if (deflateInit(&zs, 1) != Z_OK)
-          return Error::Io("Initialisation de zlib impossible");
-     
+          return Error::Io("couldn't initialize zlib deflate stream", m_location);
+
      std::streampos pos = _out.tellp();
      std::streampos dataPos = pos + std::streampos(_fHeader.DataSize());
-     
+
      _out.seekp(dataPos);
-     
+
      std::string inChunk(m_chunkSize, '\0');
      std::string outChunk(m_chunkSize, '\0');
-     
+
      uLong crc = crc32(0L, Z_NULL, 0);
-     
-     auto pump = [&](int flush) -> bool 
+
+     _fHeader.fixed.compressedSize = 0;
+     _fHeader.fixed.uncompressedSize = 0;
+
+     int flush = Z_NO_FLUSH;
+     int ret = Z_OK;
+
+     // Read one chunk, compress it, and finish the stream once the input is exhausted
+     do
      {
-          int ret;
-          
-          do 
+          _in.read(inChunk.data(), m_chunkSize);
+          const auto n = static_cast<uInt>(_in.gcount());
+
+          if (_in.bad())
+          {
+               deflateEnd(&zs);
+               return Error::Io("couldn't read file to compress", m_location);
+          }
+
+          crc = crc32(crc, reinterpret_cast<const Bytef*>(inChunk.data()), n);
+          _fHeader.fixed.uncompressedSize += n;
+
+          flush = _in.eof() ? Z_FINISH : Z_NO_FLUSH;
+          zs.next_in  = reinterpret_cast<Bytef*>(inChunk.data());
+          zs.avail_in = n;
+
+          // Drain deflate output until it has consumed the whole input chunk
+          do
           {
                zs.next_out  = reinterpret_cast<Bytef*>(outChunk.data());
                zs.avail_out = static_cast<uInt>(outChunk.size());
-               
+
                ret = deflate(&zs, flush);
-               
                if (ret == Z_STREAM_ERROR)
-                    return false;
-               
+               {
+                    deflateEnd(&zs);
+                    return Error::Io("zlib compression failed", m_location);
+               }
+
                const std::size_t produced = outChunk.size() - zs.avail_out;
-               
                _out.write(outChunk.data(), produced);
                _fHeader.fixed.compressedSize += produced;
-               
+
           } while (zs.avail_out == 0);
-          
-          return flush != Z_FINISH || ret == Z_STREAM_END;
-     };
 
-     while (_in.read(inChunk.data(), m_chunkSize) || _in.gcount() > 0)
-     {
-          const auto n = static_cast<uInt>(_in.gcount());
-          
-          crc = crc32(crc, reinterpret_cast<const Bytef*>(inChunk.data()), n);
-          
-          _fHeader.fixed.uncompressedSize += n;
+     } while (flush != Z_FINISH);
 
-          zs.next_in  = reinterpret_cast<Bytef*>(inChunk.data());
-          zs.avail_in = n;
-          
-          if (pump(Z_NO_FLUSH) == false)
-          {
-               deflateEnd(&zs); 
-               return Error::Io("Erreur de compression zlib");
-          }
-     }
-
-     zs.next_in = nullptr;
-     zs.avail_in = 0;
-     
-     if (pump(Z_FINISH) == false)
-     {
-          deflateEnd(&zs); 
-          return Error::Io("Erreur de compression zlib");
-     }
-     
      deflateEnd(&zs);
+
+     if (ret != Z_STREAM_END)
+          return Error::Io("zlib compression failed", m_location);
      
      _fHeader.fixed.crc32 = (uint32_t)crc;
      

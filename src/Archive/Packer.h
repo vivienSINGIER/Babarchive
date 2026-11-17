@@ -41,10 +41,13 @@ namespace Archive
         Error WriteHeader(std::ofstream& _out, BaseHeader const& _header);
         Error WriteDescriptor(std::ofstream& _out, FileDescriptor const& _desc);
         
-        Error WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader);
-        Error WriteRawFile(std::ofstream& _out, const char* _data, uint64_t _count, FileHeader& _fHeader);
-        
-        Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); // Use zstream
+        // Writes one file entry (header + data) at the current position and registers its descriptor
+        Error WriteEntry(std::ofstream& _out, std::istream& _in, std::string const& _name, std::string const& _extension, uint8_t _flags, uint8_t _type);
+        // Writes the descriptor list after the last entry and updates the base header
+        Error WriteIndex(std::ofstream& _out);
+
+        Error WriteFile(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader);
+        Error WriteFileCompressed(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader);
         
         Error ReadHeader(std::ifstream& _in, BaseHeader& _header);
         Error ReadDescriptors(std::ifstream& _in, uint64_t _offset, std::vector<FileDescriptor>& _out);
