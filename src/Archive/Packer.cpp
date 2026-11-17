@@ -86,6 +86,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
      // Check for duplicates
      if (CheckDuplicates(m_descriptors, _name))
           return Error::Io("file '" + _name + "' already exists in archive", m_location);
+     
      if (isDir)
      {
           std::vector<fs::path> files;
@@ -105,7 +106,6 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
      }
      
      // Write the files
-     // TODO add compressed versions methods & calls
      if (!isDir) // One single file given
      {
           std::ifstream in(_file, std::ios::in | std::ios::binary);
@@ -123,8 +123,15 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
           d.nameLength = _name.length();
           d.name = _name;
           
-          if (Error e = WriteFile(out, in, fHeader))
+          Error e;
+          if (_flags & Archive::FileFlags::Compressed)
+               e  = WriteFileCompressed(out, in, fHeader);
+          else
+               e = WriteFile(out, in, fHeader);
+          
+          if (e) 
                err.details.push_back(e.Format());
+               
           
           m_descriptors.push_back(d);
      }
@@ -138,7 +145,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
           {
                if (FileHelper::IsDir(f))
                     continue;
-               
+                
                fs::path fPath = FileHelper::NormalizePath(_name / FileHelper::RelativeTo(f, _file));
                
                std::ifstream in(f, std::ios::in | std::ios::binary);
@@ -591,6 +598,89 @@ Error Archive::Packer::WriteRawFile(std::ofstream& _out, const char* _data, uint
      _out.write(reinterpret_cast<const char*>(&_fHeader), sizeof(FileHeaderFixed));
      _out.write(_fHeader.extension.data(), _fHeader.fixed.extensionLength);
      _out.seekp(dataPos + std::streampos(_fHeader.fixed.uncompressedSize)); // return cursor to end of file data to maintain loo^p integrity
+     
+     if (!_out)
+          return Error::Io("couldn't write file in archive", m_location);
+     
+     return Error::Ok();
+}
+
+Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader)
+{
+     z_stream zs{};
+     if (deflateInit(&zs, 1) != Z_OK)
+          return Error::Io("Initialisation de zlib impossible");
+     
+     std::streampos pos = _out.tellp();
+     std::streampos dataPos = pos + std::streampos(_fHeader.DataSize());
+     
+     _out.seekp(dataPos);
+     
+     std::string inChunk(m_chunkSize, '\0');
+     std::string outChunk(m_chunkSize, '\0');
+     
+     uLong crc = crc32(0L, Z_NULL, 0);
+     
+     auto pump = [&](int flush) -> bool 
+     {
+          int ret;
+          
+          do 
+          {
+               zs.next_out  = reinterpret_cast<Bytef*>(outChunk.data());
+               zs.avail_out = static_cast<uInt>(outChunk.size());
+               
+               ret = deflate(&zs, flush);
+               
+               if (ret == Z_STREAM_ERROR)
+                    return false;
+               
+               const std::size_t produced = outChunk.size() - zs.avail_out;
+               
+               _out.write(outChunk.data(), produced);
+               _fHeader.fixed.compressedSize += produced;
+               
+          } while (zs.avail_out == 0);
+          
+          return flush != Z_FINISH || ret == Z_STREAM_END;
+     };
+
+     while (_in.read(inChunk.data(), m_chunkSize) || _in.gcount() > 0)
+     {
+          const auto n = static_cast<uInt>(_in.gcount());
+          
+          crc = crc32(crc, reinterpret_cast<const Bytef*>(inChunk.data()), n);
+          
+          _fHeader.fixed.uncompressedSize += n;
+
+          zs.next_in  = reinterpret_cast<Bytef*>(inChunk.data());
+          zs.avail_in = n;
+          
+          if (pump(Z_NO_FLUSH) == false)
+          {
+               deflateEnd(&zs); 
+               return Error::Io("Erreur de compression zlib");
+          }
+     }
+
+     zs.next_in = nullptr;
+     zs.avail_in = 0;
+     
+     if (pump(Z_FINISH) == false)
+     {
+          deflateEnd(&zs); 
+          return Error::Io("Erreur de compression zlib");
+     }
+     
+     deflateEnd(&zs);
+     
+     _fHeader.fixed.crc32 = (uint32_t)crc;
+     
+     // Write header
+     _out.seekp(pos);
+     _out.write(reinterpret_cast<const char*>(&_fHeader), sizeof(FileHeaderFixed));
+     _out.write(_fHeader.extension.data(), _fHeader.fixed.extensionLength);
+     _out.seekp(dataPos + std::streampos(_fHeader.fixed.compressedSize)); // return cursor to end of file data to maintain loo^p integrity
      
      if (!_out)
           return Error::Io("couldn't write file in archive", m_location);
