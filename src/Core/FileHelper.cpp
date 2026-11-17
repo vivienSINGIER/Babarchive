@@ -267,6 +267,42 @@ namespace FileHelper
         return Error::Ok();
     }
 
+    Error EraseRange(fs::path const& _start, uint64_t _offset, uint64_t _count)
+    {
+        uint64_t size = fs::file_size(_start);
+        
+        if (_offset >= size)
+            return Error::Io("cannot erase range, offset out of bounds", _start);
+        if (_offset + _count > size)
+            _count = size - _offset;
+        
+        {
+            std::fstream stream(_start, std::ios::in | std::ios::out | std::ios::binary);
+            if (!stream.is_open())
+                return Error::Io("failed to open file", _start);
+            
+            std::vector<char> buff(4096);
+            
+            uint64_t readPos = _offset + _count;
+            uint64_t writePos = _offset;
+            
+            while (readPos < size)
+            {
+                uint64_t n = std::min(buff.size(), size - readPos);
+                stream.seekg(readPos);
+                stream.read(buff.data(), n);
+                stream.seekp(writePos);
+                stream.write(buff.data(), n);
+                readPos += n;
+                writePos += n;
+            }
+        }
+        
+        fs::resize_file(_start, size - _count);
+        
+        return Error::Ok();
+    }
+
     fs::path NormalizePath(fs::path const& _path)
     {
         std::error_code ec;

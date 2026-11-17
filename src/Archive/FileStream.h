@@ -20,7 +20,7 @@ public:
     virtual ~FileStream() = default;
     
     virtual Error Open(fs::path const& _path, uint64_t _startOffset, uint64_t _count);
-    virtual Error Read(const char* _data, uint64_t count) = 0;
+    virtual Error Read(const char* _data, uint64_t count);
     virtual bool IsAtEnd();
     virtual bool IsFinished();
     

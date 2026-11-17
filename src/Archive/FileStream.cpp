@@ -18,6 +18,11 @@ Error Archive::FileStream::Open(fs::path const& _path, uint64_t _startOffset, ui
     return Error::Ok();
 }
 
+Error Archive::FileStream::Read(const char* _data, uint64_t count)
+{
+    return Error::Ok();
+}
+
 bool Archive::FileStream::IsAtEnd()
 {
     return m_cursorOffset >= m_count || m_file.eof();

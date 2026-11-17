@@ -18,6 +18,10 @@ Error Archive::Packer::Open(fs::path _location)
      if (src.is_open() == false)
           return Error::Io("couldn't open archive file", _location);
      
+     m_isOpen = true;
+     m_location = _location;
+     m_descriptors.clear();
+     
      if (Error e = ReadHeader(src, m_header))
           return e;
      if (m_header.magicNumber != g_magicNumber)
@@ -27,8 +31,6 @@ Error Archive::Packer::Open(fs::path _location)
      if (Error e = ReadDescriptors(src, m_header.descriptorListOffset, m_descriptors))
           return e;
      
-     m_location = _location;
-     m_isOpen = true;
      
      return Error::Ok();
 }
@@ -152,7 +154,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
                
                if (Error e = WriteFile(out, in, fHeader))
                     err.details.push_back(e.Format());
-          
+               
                m_descriptors.push_back(d);
           }
      }
@@ -206,6 +208,71 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
      return Error::Ok();
 }
 
+Error Archive::Packer::Remove(std::string_view _name)
+{
+     if (m_isOpen == false)
+          return Error::Io("cannot read non created archive file", m_location);
+     
+     bool found = false;
+     uint64_t toRemoveOffset = 0;
+     int index = 0;
+     uint64_t descLength = 0;
+     for (int i = 0; i < m_descriptors.size(); i++)
+     {
+          if (m_descriptors[i].name == _name)
+          {
+               index = i;
+               found = true;
+               toRemoveOffset = m_descriptors[i].offset;
+               descLength = m_descriptors[i].DataSize();
+               break;
+          }
+     }
+     
+     if (!found)
+          return Error::Io("couldn't find file in archive", m_location);
+     std::ifstream in(m_location, std::ios::in | std::ios::binary);
+     if (in.is_open() == false)
+          return Error::Io("couldn't open archive file", m_location);
+     
+     FileHeader fHeader;
+     if (ReadFileHeader(in, toRemoveOffset, fHeader))
+          return Error::Io("couldn't read file header", m_location);
+     
+     uint64_t toRemoveLength = fHeader.DataSize();
+     if (fHeader.fixed.flags & FileFlags::Compressed)
+          toRemoveLength += fHeader.fixed.compressedSize;
+     else
+          toRemoveLength += fHeader.fixed.uncompressedSize;
+     
+     m_header.descriptorListOffset -= toRemoveLength;
+     m_descriptors.erase(m_descriptors.begin() + index);
+     
+     in.close();
+     
+     if (Error e = FileHelper::EraseRange(m_location, toRemoveOffset, toRemoveLength))
+          return e;
+     
+     std::ofstream out(m_location, std::ios::out | std::ios::binary);
+     if (out.is_open() == false)
+          return Error::Io("couldn't open archive file", m_location);
+     
+     if (Error e = WriteHeader(out, m_header))
+          return e;
+     out.seekp(m_header.descriptorListOffset);
+     for (FileDescriptor& d : m_descriptors)
+     {
+          if (Error e = WriteDescriptor(out, d))
+               return e;
+     }
+     out.close();
+     
+     uint64_t size = fs::file_size(m_location);
+     fs::resize_file(m_location, size - descLength);
+     
+     return Error::Ok();
+}
+
 Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream)
 {
      if (m_isOpen == false)
@@ -223,12 +290,12 @@ Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, s
           }
      }
      
-     std::ifstream in(m_location, std::ios::in | std::ios::binary);
-     if (in.is_open() == false)
-          return Error::Io("couldn't open archive file", m_location);
-     
      if (!found)
           return Error::Io("couldn't find file in archive", m_location);
+     std::ifstream in(m_location, std::ios::in | std::ios::binary);
+     
+     if (in.is_open() == false)
+          return Error::Io("couldn't open archive file", m_location);
      
      FileHeader fHeader;
      if (ReadFileHeader(in, offset, fHeader))

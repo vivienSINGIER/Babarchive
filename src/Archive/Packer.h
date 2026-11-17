@@ -43,7 +43,7 @@ namespace Archive
         Error WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader);
         Error WriteRawFile(std::ofstream& _out, const char* _data, uint64_t _count, FileHeader& _fHeader);
         
-        Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); // Use zstream
+        // Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); // Use zstream
         
         Error ReadHeader(std::ifstream& _in, BaseHeader& _header);
         Error ReadDescriptors(std::ifstream& _in, uint64_t _offset, std::vector<FileDescriptor>& _out);

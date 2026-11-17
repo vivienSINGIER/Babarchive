@@ -13,7 +13,7 @@ namespace fs = std::filesystem;
 
 namespace FileHelper
 {
-    // --- Queries (never throw, never fail loudly) ---
+    // --- Queries ---
     bool Exists(fs::path const& _path);
     bool IsFile(fs::path const& _path);
     bool IsDir(fs::path const& _path);
@@ -33,6 +33,8 @@ namespace FileHelper
     Error TouchFile(fs::path const& _file, WriteOutcome& _out);
     Error RemoveFile(fs::path const& _file);
     Error CopyFileTo(fs::path const& _src, fs::path const& _dst, bool _overwrite);
+    
+    Error EraseRange(fs::path const& _start, uint64_t _offset, uint64_t _count);
 
     // --- Path helpers ---
     fs::path NormalizePath(fs::path const& _path);
