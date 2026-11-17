@@ -276,14 +276,16 @@ Error Archive::Packer::Remove(std::string_view _name)
      else
           toRemoveLength += fHeader.fixed.uncompressedSize;
      
-     m_header.descriptorListOffset -= toRemoveLength;
-     m_descriptors.erase(m_descriptors.begin() + index);
-     
      in.close();
-     
+
      if (Error e = FileHelper::EraseRange(m_location, toRemoveOffset, toRemoveLength))
           return e;
-     
+
+     // Only update the in-memory state once the data is really gone from the file
+     m_header.dataSize -= toRemoveLength;
+     m_header.descriptorListOffset -= toRemoveLength;
+     m_descriptors.erase(m_descriptors.begin() + index);
+
      std::ofstream out(m_location, std::ios::in | std::ios::out | std::ios::binary);
      if (out.is_open() == false)
           return Error::Io("couldn't open archive file", m_location);
