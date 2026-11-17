@@ -2,7 +2,6 @@
 #define BABARCHIVE_ARCHIVE_PACKER_H_DEFINED
 
 #include "FileStream.h"
-#include "Packer.h"
 #include "Structs.h"
 
 #include "../Core/FileHelper.h"
@@ -23,11 +22,9 @@ namespace Archive
         
         Error Remove(std::string_view _name);
         
-        Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream);
-        
         Error Unpack(fs::path _unpackLocation);
         
-        // FileStream Read(std::string const& _name);
+        Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream);
         
         // Add Reads
         

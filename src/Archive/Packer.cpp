@@ -371,6 +371,8 @@ Error Archive::Packer::Unpack(fs::path _unpackLocation)
                continue;
           }
 
+          dst += fHeader.extension;
+          
           if (Error e = FileHelper::CreateDir(dst.parent_path()))
           {
                err.details.push_back(e.Format());
