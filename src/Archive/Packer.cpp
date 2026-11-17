@@ -16,8 +16,7 @@ Error Archive::Packer::Open(fs::path _location)
      std::ifstream src(_location, std::ios::in | std::ios::binary);
      if (src.is_open() == false)
           return Error::Io("couldn't open archive file", _location);
-
-     // Read helpers require an open archive with a valid location
+     
      m_location = _location;
      m_isOpen = true;
      m_descriptors.clear();
@@ -270,6 +269,8 @@ Error Archive::Packer::Unpack(fs::path _unpackLocation)
                continue;
           }
 
+          dst += fHeader.extension;
+          
           if (Error e = FileHelper::CreateDir(dst.parent_path()))
           {
                err.details.push_back(e.Format());

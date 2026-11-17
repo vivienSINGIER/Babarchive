@@ -1,7 +1,6 @@
 ﻿#ifndef BABARCHIVE_ARCHIVE_PACKER_H_DEFINED
 #define BABARCHIVE_ARCHIVE_PACKER_H_DEFINED
 
-#include "Packer.h"
 #include "Structs.h"
 
 #include "../Core/FileHelper.h"
@@ -20,7 +19,7 @@ namespace Archive
         Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
         Error Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
         
-        Error Remove(std::string_view _name);
+        // Error Remove(std::string_view _name);
         
         Error Unpack(fs::path _unpackLocation);
         
@@ -44,7 +43,7 @@ namespace Archive
         Error WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader);
         Error WriteRawFile(std::ofstream& _out, const char* _data, uint32_t _count, FileHeader& _fHeader);
         
-        Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); // Use zstream
+        // Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); // Use zstream
         
         Error ReadHeader(std::ifstream& _in, BaseHeader& _header);
         Error ReadDescriptors(std::ifstream& _in, uint64_t _offset, std::vector<FileDescriptor>& _out);
