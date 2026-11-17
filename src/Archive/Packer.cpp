@@ -6,6 +6,8 @@
 
 #include <zlib.h>
 
+#include "Encryption.hpp"
+
 Archive::Packer::Packer()
 {
      m_isOpen = false;  
@@ -532,11 +534,13 @@ Error Archive::Packer::WriteFile(std::ofstream& _out, std::ifstream& _in, FileHe
      _fHeader.fixed.compressedSize = 0;
      _fHeader.fixed.uncompressedSize = 0;
      
+     std::array<std::string, 3> hashes = Encryption::GetHashes("MaClédesesmorts");
+     
      while (_in.read(chunk.data(), m_chunkSize) || _in.gcount() > 0)
      {
           crc = crc32(crc, reinterpret_cast<const Bytef*>(chunk.data()), _in.gcount());
           
-          // TODO Add encryption step
+          Encryption::Encrypt(hashes, chunk.data(), _in.gcount());
           _fHeader.fixed.uncompressedSize += _in.gcount();
           
           _out.write(chunk.data(), _in.gcount());
