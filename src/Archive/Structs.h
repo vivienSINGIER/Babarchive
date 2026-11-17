@@ -37,9 +37,14 @@ namespace Archive
         uint32_t nameLength;
         std::string name;
         uint64_t offset;
+        
+        uint64_t DataSize() const
+        {
+            return sizeof(nameLength) + sizeof(offset) + sizeof(char) * nameLength;
+        }
     };
     
-#pragma pack()
+#pragma pack(push, 1)
     struct FileHeaderFixed
     {
         uint64_t uncompressedSize;
@@ -52,12 +57,12 @@ namespace Archive
         
         uint16_t extensionLength;
     };
+#pragma pack(pop)
     
     struct FileHeader
     {
         FileHeaderFixed fixed;
         std::string extension;
-        
         
         uint32_t DataSize() const
         {

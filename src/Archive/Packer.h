@@ -1,6 +1,7 @@
 ﻿#ifndef BABARCHIVE_ARCHIVE_PACKER_H_DEFINED
 #define BABARCHIVE_ARCHIVE_PACKER_H_DEFINED
 
+#include "FileStream.h"
 #include "Structs.h"
 
 #include "../Core/FileHelper.h"
@@ -23,7 +24,7 @@ namespace Archive
         
         Error Unpack(fs::path _unpackLocation);
         
-        // FileStream Read(std::string const& _name);
+        Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream);
         
         // Add Reads
         
@@ -41,7 +42,7 @@ namespace Archive
         Error WriteDescriptor(std::ofstream& _out, FileDescriptor const& _desc);
         
         Error WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader);
-        Error WriteRawFile(std::ofstream& _out, const char* _data, uint32_t _count, FileHeader& _fHeader);
+        Error WriteRawFile(std::ofstream& _out, const char* _data, uint64_t _count, FileHeader& _fHeader);
         
         // Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); // Use zstream
         
