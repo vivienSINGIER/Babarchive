@@ -1,5 +1,7 @@
 ﻿#include "FileStream.h"
 
+#include "Encryption.hpp"
+
 Error Archive::FileStream::Open(fs::path const& _path, uint64_t _startOffset, uint64_t _count)
 {
     m_file.open(_path.string());
@@ -12,6 +14,7 @@ Error Archive::FileStream::Open(fs::path const& _path, uint64_t _startOffset, ui
     m_cursorOffset = 0;
     m_readCount = 0;
     m_readTotal = 0;
+    m_decrypt = false;
     
     m_file.seekg(_startOffset);
     
@@ -49,6 +52,12 @@ void Archive::FileStream::SetCursorOffset(uint64_t _cursorOffset)
     m_file.seekg(m_startOffset + m_cursorOffset);
 }
 
+void Archive::FileStream::SetDecryptionKey(std::string const& _key)
+{
+    m_decrypt = true;
+    m_hashKeys = Encryption::GetHashes(_key);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Error Archive::UncompressedFileStream::Read(char* _data, uint64_t count)
@@ -57,6 +66,9 @@ Error Archive::UncompressedFileStream::Read(char* _data, uint64_t count)
         return Error::Io("Failed to read file, cursor out of bounds");
     
     m_file.read(_data, count);
+    
+    if (m_decrypt)
+        Encryption::Decrypt(m_hashKeys, _data, count);
     
     m_readCount = m_file.gcount();
     m_readTotal += m_readCount;
@@ -120,6 +132,8 @@ Error Archive::CompressedFileStream::Read(char* _data, uint64_t _count)
             return Error::Io("Failed to read compressed data");
     }
     m_readCount = _count - m_stream.avail_out;
+    if (m_decrypt)
+        Encryption::Decrypt(m_hashKeys, _data, _count);
     return Error::Ok();
 }
 

@@ -69,7 +69,7 @@ Error Archive::Packer::Create(fs::path _location, std::string _name)
      return Error::Ok();
 }
 
-Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type)
+Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type, std::string const& _key)
 {
      if (m_isOpen == false)
           return Error::Io("cannot write on non created archive file", m_location);
@@ -107,6 +107,9 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
           }
      }
      
+     if (_key.length() != 0)
+          _flags |= FileFlags::Encrypted;
+     
      // Write the files
      // TODO add compressed versions methods & calls
      if (!isDir) // One single file given
@@ -126,7 +129,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
           d.nameLength = _name.length();
           d.name = _name;
           
-          if (Error e = WriteFile(out, in, fHeader))
+          if (Error e = WriteFile(out, in, fHeader, _key))
                err.details.push_back(e.Format());
           
           m_descriptors.push_back(d);
@@ -159,7 +162,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
                d.nameLength = fPath.string().length();
                d.name = fPath.string();
                
-               if (Error e = WriteFile(out, in, fHeader))
+               if (Error e = WriteFile(out, in, fHeader, _key))
                     err.details.push_back(e.Format());
                
                m_descriptors.push_back(d);
@@ -184,7 +187,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
      return Error::Ok();
 }
 
-Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type)
+Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type, std::string const& _key)
 {
      if (m_isOpen == false)
           return Error::Io("cannot write on non created archive file", m_location);
@@ -195,6 +198,9 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
      out.seekp(m_header.descriptorListOffset);
           
      Error err = Error::Io("Failed to add file/s to archive");
+     
+     if (_key.length() != 0)
+          _flags |= FileFlags::Encrypted;
      
      FileHeader fHeader;
      fHeader.extension = "";
@@ -207,7 +213,7 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
      d.nameLength = _name.length();
      d.name = _name;
           
-     if (Error e = WriteRawFile(out, _data, _count, fHeader))
+     if (Error e = WriteRawFile(out, _data, _count, fHeader, _key))
           err.details.push_back(e.Format());
           
      m_descriptors.push_back(d);
@@ -282,7 +288,7 @@ Error Archive::Packer::Remove(std::string_view _name)
      return Error::Ok();
 }
 
-Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream)
+Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream, std::string const& _key)
 {
      if (m_isOpen == false)
           return Error::Io("cannot read non created archive file", m_location);
@@ -329,6 +335,9 @@ Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, s
      
      if (Error e = ptr->Open(m_location, strOffset, dataSize))
           return e;
+     
+     if (_header.fixed.flags & FileFlags::Encrypted)
+          ptr->SetDecryptionKey(_key);
      
      _stream = std::move(ptr);
      
@@ -519,7 +528,7 @@ Error Archive::Packer::WriteDescriptor(std::ofstream& _out, FileDescriptor const
      return Error::Ok();
 }
 
-Error Archive::Packer::WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader)
+Error Archive::Packer::WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader, std::string const& _key)
 {
      std::streampos pos = _out.tellp();
      std::streampos dataPos = pos + std::streampos(_fHeader.DataSize());
@@ -534,13 +543,16 @@ Error Archive::Packer::WriteFile(std::ofstream& _out, std::ifstream& _in, FileHe
      _fHeader.fixed.compressedSize = 0;
      _fHeader.fixed.uncompressedSize = 0;
      
-     std::array<std::string, 3> hashes = Encryption::GetHashes("MaClédesesmorts");
+     bool encrypt = _fHeader.fixed.flags & FileFlags::Encrypted;
+     
+     std::array<std::string, 3> hashes = Encryption::GetHashes(_key);
      
      while (_in.read(chunk.data(), m_chunkSize) || _in.gcount() > 0)
      {
           crc = crc32(crc, reinterpret_cast<const Bytef*>(chunk.data()), _in.gcount());
           
-          Encryption::Encrypt(hashes, chunk.data(), _in.gcount());
+          if (encrypt)
+               Encryption::Encrypt(hashes, chunk.data(), _in.gcount());
           _fHeader.fixed.uncompressedSize += _in.gcount();
           
           _out.write(chunk.data(), _in.gcount());
@@ -561,15 +573,13 @@ Error Archive::Packer::WriteFile(std::ofstream& _out, std::ifstream& _in, FileHe
      return Error::Ok();
 }
 
-Error Archive::Packer::WriteRawFile(std::ofstream& _out, const char* _data, uint64_t _count, FileHeader& _fHeader)
+Error Archive::Packer::WriteRawFile(std::ofstream& _out, char* _data, uint64_t _count, FileHeader& _fHeader, std::string const& _key)
 {
      std::streampos pos = _out.tellp();
      std::streampos dataPos = pos + std::streampos(_fHeader.DataSize());
      
      _out.seekp(dataPos);
      
-     std::string chunk;
-     chunk.resize(m_chunkSize);
      
      uLong crc = crc32(0L, Z_NULL, 0);
      
@@ -579,6 +589,10 @@ Error Archive::Packer::WriteRawFile(std::ofstream& _out, const char* _data, uint
      uint32_t toWrite = _count;
      uint32_t dataCursor = 0;
      
+     bool encrypt = _fHeader.fixed.flags & FileFlags::Encrypted;
+     
+     std::array<std::string, 3> hashes = Encryption::GetHashes(_key);
+     
      while (toWrite > 0)
      {
           uint32_t count = std::min(toWrite, m_chunkSize);
@@ -586,6 +600,8 @@ Error Archive::Packer::WriteRawFile(std::ofstream& _out, const char* _data, uint
           crc = crc32(crc, reinterpret_cast<const Bytef*>(_data + dataCursor), count);
           
           _out.write(_data + dataCursor, count);
+          if (encrypt)
+               Encryption::Encrypt(hashes, _data + dataCursor, count);
           toWrite -= count;
           dataCursor += count;
      }

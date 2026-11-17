@@ -1,6 +1,7 @@
 ﻿#ifndef BABARCHIVE_ARCHIVE_FILESTREAM_H_DEFINED
 #define BABARCHIVE_ARCHIVE_FILESTREAM_H_DEFINED
 
+#include <array>
 #include <fstream>
 #include <iosfwd>
 
@@ -28,6 +29,7 @@ public:
     uint64_t ReadCount() const;
     
     void SetCursorOffset(uint64_t _cursorOffset);
+    void SetDecryptionKey(std::string const& _key);
     
 protected:
     std::ifstream m_file;
@@ -37,6 +39,9 @@ protected:
     uint64_t m_cursorOffset;
     uint64_t m_readCount;
     uint64_t m_readTotal;
+    
+    std::array<std::string, 3> m_hashKeys;
+    bool m_decrypt;
 };
     
 class UncompressedFileStream : public FileStream

@@ -17,14 +17,14 @@ namespace Archive
         Error Open(fs::path _location);
         Error Create(fs::path _location, std::string _name);
         
-        Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
-        Error Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
+        Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary, std::string const& _key = "");
+        Error Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary, std::string const& _key = "");
         
         Error Remove(std::string_view _name);
         
         Error Unpack(fs::path _unpackLocation);
         
-        Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream);
+        Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream, std::string const& _key = "");
         
         // Add Reads
         
@@ -41,8 +41,8 @@ namespace Archive
         Error WriteHeader(std::ofstream& _out, BaseHeader const& _header);
         Error WriteDescriptor(std::ofstream& _out, FileDescriptor const& _desc);
         
-        Error WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader);
-        Error WriteRawFile(std::ofstream& _out, const char* _data, uint64_t _count, FileHeader& _fHeader);
+        Error WriteFile(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader, std::string const& _key);
+        Error WriteRawFile(std::ofstream& _out, char* _data, uint64_t _count, FileHeader& _fHeader, std::string const& _key);
         
         // Error WriteFileCompressed(std::ofstream& _out, std::ifstream& _in, FileHeader& _fHeader); // Use zstream
         

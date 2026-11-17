@@ -17,10 +17,12 @@ namespace Encryption
             s.resize((size_t)hashLength);
             
             std::hash<std::string> hash;
-            int sHash = hash(s);
+            size_t sHash = (i == 0) ? hash(_key) : hash(hashs[i - 1]);
             for (uint64_t j = 0; j < hashLength; j++)
             {
-                s[j] = _key[sHash % _key.length()] * sHash;
+                int index = (sHash * j) % _key.length();
+                char value = _key[index] * sHash * j;
+                s[(int)j] = value;
             }
         }
         
@@ -31,7 +33,7 @@ namespace Encryption
     {
         for (uint64_t i = 0; i < _dataLength; i++)
         {
-            for (int h = 0; i < 3; i++)
+            for (int h = 0; h < 3; h++)
             {
                 _data[i] = _data[i] + _hashes[h][i % _hashes[h].length()];
             }   
