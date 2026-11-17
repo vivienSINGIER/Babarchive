@@ -18,7 +18,8 @@ Error Archive::Packer::Open(fs::path _location)
      std::ifstream src(_location, std::ios::in | std::ios::binary);
      if (src.is_open() == false)
           return Error::Io("couldn't open archive file", _location);
-     
+
+     // Read helpers require an open archive with a valid location
      m_location = _location;
      m_isOpen = true;
      m_descriptors.clear();
@@ -283,16 +284,18 @@ Error Archive::Packer::Remove(std::string_view _name)
      if (Error e = FileHelper::EraseRange(m_location, toRemoveOffset, toRemoveLength))
           return e;
      
-     std::ofstream out(m_location, std::ios::out | std::ios::binary);
+     std::ofstream out(m_location, std::ios::in | std::ios::out | std::ios::binary);
      if (out.is_open() == false)
           return Error::Io("couldn't open archive file", m_location);
      
      if (Error e = WriteHeader(out, m_header))
           return e;
      out.seekp(m_header.descriptorListOffset);
-     for (FileDescriptor& d : m_descriptors)
+     for (int i = 0; i < m_descriptors.size(); i++)
      {
-          if (Error e = WriteDescriptor(out, d))
+          if (i >= index)
+               m_descriptors[i].offset -= toRemoveLength;
+          if (Error e = WriteDescriptor(out, m_descriptors[i]))
                return e;
      }
      out.close();
