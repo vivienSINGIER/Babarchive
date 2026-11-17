@@ -27,7 +27,7 @@ int main()
     e = packer.Add("../Test/babar.jpg", "image", Archive::FileFlags::None, Archive::FileType::Binary);
     std::cout << e.Format() << "\n";
     
-    e = packer.Remove("test");
+    e = packer.Remove("test2");
     std::cout << e.Format() << "\n";
     
     e = packer.Unpack("../Test/Unpack");
