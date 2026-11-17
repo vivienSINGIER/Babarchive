@@ -1,136 +1,249 @@
 # Babarchive — Guide d'utilisation de l'archive
 
 Babarchive regroupe les assets d'un projet (textures, textes, données binaires)
-dans un seul fichier. Les fichiers peuvent être compressés, puis relus par leur nom,
-sous forme brute.
+dans un seul fichier `.babar`. Chaque fichier peut être compressé (zlib), puis relu
+par son nom, en flux, ou extrait sur le disque.
 
-```text
-Babarchive Read BlueMetalPlate/arm.png
+```cpp
+Archive::Packer packer;
+packer.Open("Assets/assets.babar");
+
+Archive::FileHeader header;
+std::unique_ptr<Archive::FileStream> stream;
+packer.ReadFile("BlueMetalPlate/arm", header, stream);
 ```
 
 ---
 
-## 1. Utiliser l'archive : le Packer
+## 1. Utiliser l'archive : le `Packer`
 
-Toute la manipulation passe par la classe `Archive`.
+Toute la manipulation passe par la classe `Archive::Packer` (`src/Archive/Packer.h`).
 
 ```cpp
-class Archive
+namespace Archive
 {
-    Create(path /* dossier ou fichier */, flags);
+    class Packer
+    {
+    public:
+        Error Create(fs::path _location, std::string _name);
+        Error Open(fs::path _location);
 
-    Add(path /* dossier ou fichier */, flags);
-    Add(const char* _data, uint32 _count);
+        Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
+        Error Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
 
-    Remove(fileName);
+        Error Remove(std::string_view _name);
 
-    FileStream Read(name);
-};
+        Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream);
+        Error Unpack(fs::path _unpackLocation);
+
+        void     SetChunkSize(uint32_t _chunkSize);
+        uint32_t GetChunkSize() const;
+    };
+}
 ```
 
-### Créer une archive
+### Gestion des erreurs
+
+Toutes les méthodes renvoient une `Error` (`src/Core/Error.h`). Elle vaut `true` en cas
+d'erreur, et `Format()` donne le message complet, avec le détail de chaque fichier en échec.
 
 ```cpp
-Archive archive = Archive::Create("Assets/", Flags::Compressed);
+if (Error e = packer.Add("Test/test.txt", "test", Archive::FileFlags::Compressed))
+    std::cout << e.Format() << "\n";
 ```
 
-`Create` construit une archive à partir d'un **dossier** (tout son contenu est ajouté) ou d'un
-**fichier** unique. Les `flags` choisissent le traitement appliqué aux fichiers (voir
-[Flags](#flags-fichier)).
+Quand une opération porte sur plusieurs fichiers (`Add` d'un dossier, `Unpack`), un fichier
+en échec n'arrête pas les autres : les erreurs sont regroupées dans `Error::details`.
+
+### Créer ou ouvrir une archive
+
+```cpp
+Archive::Packer packer;
+
+Error e = packer.Create("Test", "archive");     // crée Test/archive.babar
+if (e)
+    e = packer.Open("Test/archive.babar");      // existe déjà : on l'ouvre
+```
+
+- `Create(_location, _name)` crée le fichier `_location/_name.babar`, contenant seulement
+  le header archive. Renvoie une erreur si le fichier existe déjà.
+- `Open(_location)` lit le header et la liste des fichiers d'une archive existante. Renvoie
+  une erreur si le fichier n'est pas une archive Babar (magic number invalide). Une version
+  différente donne seulement un avertissement.
+
+Toutes les autres méthodes demandent une archive créée ou ouverte.
 
 ### Ajouter des fichiers
 
 ```cpp
-archive.Add("Textures/BlueMetalPlate/", Flags::Compressed);   // dossier ou fichier du disque
-archive.Add(buffer, bufferSize);                              // données déjà en mémoire
+// Un fichier du disque
+packer.Add("Test/babar.jpg", "image", Archive::FileFlags::Compressed, Archive::FileType::Binary);
+
+// Un dossier du disque (récursif)
+packer.Add("Textures/BlueMetalPlate", "BlueMetalPlate", Archive::FileFlags::Compressed);
+
+// Des données déjà en mémoire
+packer.Add(buffer, bufferSize, "level01", Archive::FileFlags::None);
 ```
 
-- `Add(path, flags)` : ajoute un fichier ou un dossier du disque, avec les flags voulus.
-- `Add(const char* _data, uint32 _count)` : ajoute `_count` octets lus depuis un buffer mémoire.
+- `Add(_file, _name, _flags, _type)` : ajoute un fichier ou un dossier du disque.
+  - **Fichier** : il est enregistré sous le nom `_name`. L'extension du fichier d'origine
+    est conservée à part dans son header, donc `_name` s'écrit **sans extension**.
+  - **Dossier** : chaque fichier du dossier et de ses sous-dossiers est ajouté sous le nom
+    `_name/<chemin relatif sans extension>`, avec des `/` comme séparateurs.
+    Exemple : `Textures/BlueMetalPlate/sub/arm.png` ajouté avec `_name = "BlueMetalPlate"`
+    devient `BlueMetalPlate/sub/arm`.
+- `Add(_data, _count, _name, _flags, _type)` : ajoute `_count` octets lus depuis un buffer
+  mémoire, sans extension. Les données sont copiées en mémoire le temps de l'écriture.
+
+Un nom déjà présent dans l'archive est refusé, et pour un dossier rien n'est écrit si un de
+ses noms existe déjà.
+
+Chaque ajout réécrit la liste des fichiers et le header archive : l'archive est toujours
+valide sur le disque après un `Add`.
 
 ### Retirer un fichier
 
 ```cpp
-archive.Remove("BlueMetalPlate/arm.png");
+packer.Remove("image");
 ```
+
+Le header et les données du fichier sont supprimés du fichier `.babar`, qui est compacté :
+les fichiers suivants sont décalés et la liste des fichiers est réécrite. L'archive ne
+garde pas de trou.
 
 ### Lire un fichier
 
-Deux façons de lire, selon le besoin :
+```cpp
+Archive::FileHeader header;
+std::unique_ptr<Archive::FileStream> stream;
+
+if (Error e = packer.ReadFile("image", header, stream))
+    return e;
+```
+
+`ReadFile` cherche le fichier par son nom (sans extension), remplit `header` (tailles,
+type, flags, CRC, extension) et renvoie un `FileStream` déjà positionné sur ses données.
+Voir [Lire un flux](#2-lire-un-flux--filestream).
+
+### Extraire toute l'archive
 
 ```cpp
-// Lecture brute 
-FileStream stream = archive.Read("BlueMetalPlate/arm.png");
+packer.Unpack("Test/Unpack");
 ```
+
+`Unpack` recrée chaque fichier sous `_unpackLocation/<nom><extension>`, en créant les
+sous-dossiers nécessaires. Par exemple `BlueMetalPlate/sub/arm` avec l'extension `.png`
+donne `_unpackLocation/BlueMetalPlate/sub/arm.png`.
+
+Pour chaque fichier, `Unpack` :
+- décompresse les données si le fichier porte le flag `Compressed` ;
+- vérifie la taille et le CRC32 : un fichier corrompu est signalé dans l'erreur renvoyée ;
+- ignore, avec une erreur, les noms qui sortiraient du dossier de destination (`../`,
+  chemin absolu) et les fichiers marqués `Encrypted`.
+
+### Taille des blocs
+
+`SetChunkSize` règle la taille des blocs utilisés pour écrire et extraire les fichiers
+(16 384 octets par défaut). Les fichiers ne sont jamais chargés entièrement en mémoire.
 
 ---
 
 ## 2. Lire un flux : `FileStream`
 
-`Read` renvoie un `FileStream`, qui se lit par blocs.
+`ReadFile` renvoie un `FileStream` (`src/Archive/FileStream.h`), qui se lit par blocs.
 
 ```cpp
 class FileStream
 {
-    Error  Read(char* buff, _buffSize);
-    uint32 gcount();
-    bool   IsAtEnd();
+public:
+    virtual Error Read(char* _data, uint64_t _count) = 0;
+    uint64_t      ReadCount() const;
+    virtual bool  IsFinished();
+    virtual bool  IsAtEnd();
 
-    uint32 m_lastReadSize;
+    uint64_t CursorOffset() const;
+    void     SetCursorOffset(uint64_t _cursorOffset);
 };
 ```
 
-| Méthode                   | Rôle                                                       |
-|---------------------------|------------------------------------------------------------|
-| `Read(buff, _buffSize)`   | lit au plus `_buffSize` octets dans `buff`, renvoie une `Error` |
-| `gcount()`                | nombre d'octets réellement lus par le dernier `Read` (`m_lastReadSize`) |
-| `IsAtEnd()`               | `true` quand tout le fichier a été lu                      |
+| Méthode                 | Rôle                                                                  |
+|-------------------------|-----------------------------------------------------------------------|
+| `Read(_data, _count)`   | lit au plus `_count` octets (décompressés) dans `_data`, renvoie une `Error` |
+| `ReadCount()`           | nombre d'octets réellement lus par le dernier `Read`                  |
+| `IsFinished()`          | `true` quand tout le fichier a été lu                                 |
+| `IsAtEnd()`             | `true` quand le curseur est à la fin des données                      |
+| `CursorOffset()`        | position actuelle dans les données du fichier                         |
+| `SetCursorOffset(pos)`  | déplace le curseur (fichiers non compressés uniquement)               |
 
 Boucle de lecture type :
 
 ```cpp
-FileStream stream = archive.Read("Data/level01.bin");
-char buffer[4096];
+Archive::FileHeader header;
+std::unique_ptr<Archive::FileStream> stream;
+if (Error e = packer.ReadFile("level01", header, stream))
+    return e;
 
-while (stream.IsAtEnd() == false)
+char buffer[STREAM_BUFFER_SIZE];
+std::string content;
+
+while (stream->IsFinished() == false)
 {
-    Error err = stream.Read(buffer, sizeof(buffer));
-    // vérifier err, puis traiter stream.gcount() octets de buffer
+    if (Error e = stream->Read(buffer, sizeof(buffer)))
+        return e;
+    content.append(buffer, stream->ReadCount());
 }
 ```
 
-Il existe deux implémentations de `FileStream`, choisies automatiquement selon les flags du fichier :
+Il existe deux implémentations de `FileStream`, choisies automatiquement par `ReadFile`
+selon les flags du fichier :
 
-- **Uncompressed File Stream** : renvoie les octets tels qu'ils sont stockés.
-- **Compressed File Stream** : décompresse à la volée (*avec zstream*).
+- **`UncompressedFileStream`** : renvoie les octets tels qu'ils sont stockés. Ne lit jamais
+  au-delà des données du fichier.
+- **`CompressedFileStream`** : décompresse à la volée avec zlib (`inflate`). On ne peut pas
+  se déplacer dans un flux compressé : `SetCursorOffset` n'y a pas de sens.
+
+Le flux ne vérifie pas le CRC32 : seul `Unpack` le fait. Pour le vérifier en lecture,
+comparer le CRC des octets lus à `header.fixed.crc32`.
 
 ---
 
 ## 3. Options des fichiers
 
-### Flags fichier
+### Flags fichier (`Archive::FileFlags`)
 
-| Flag         | Effet                                     |
-|--------------|-------------------------------------------|
-| `None`       | fichier stocké en raw                     |
-| `Compressed` | fichier compressé dans l'archive          |
+Les flags se combinent avec `|` et sont stockés sur un octet.
 
-### Types de fichier 
+| Flag           | Valeur | Effet                                                    |
+|----------------|--------|----------------------------------------------------------|
+| `None`         | `0x00` | fichier stocké tel quel                                  |
+| `Compressed`   | `0x01` | fichier compressé avec zlib                              |
+| `Encrypted`    | `0x02` | réservé, pas encore géré (ignoré par `Unpack`)           |
+| `BigEndian`    | `0x04` | réservé, pas encore utilisé                              |
+| `LittleEndian` | `0x08` | réservé, pas encore utilisé                              |
 
-| Type     | Contenu                                           |
-|----------|---------------------------------------------------|
-| `Raw`    | octets brutes                                     |
-| `Binary` | données binaires                                  |
-| `Text`   | texte                                             |
+### Types de fichier (`Archive::FileType`)
+
+Le type est seulement stocké dans le header du fichier : il ne change pas la façon dont le
+fichier est écrit ou lu. Par défaut, `Add` utilise `Binary`.
+
+| Type     | Valeur | Contenu          |
+|----------|--------|------------------|
+| `Raw`    | `0`    | octets bruts     |
+| `Binary` | `1`    | données binaires |
+| `Text`   | `2`    | texte            |
 
 ---
 
 ## 4. Format du fichier d'archive
 
+Tous les entiers sont en little-endian (ordre natif x86/x64). Les chaînes sont stockées
+sans `\0` final, leur longueur est donnée par le champ qui les précède.
+
 Vue d'ensemble :
 
 ```text
-[HEADER ARCHIVE]
+[HEADER ARCHIVE]              <- 24 octets, position 0
 
 [HEADER FICHIER 0]
 [données fichier 0]
@@ -138,42 +251,53 @@ Vue d'ensemble :
 [HEADER FICHIER 1]
 [données fichier 1]
 ...
-[liste des FILE DESCRIPTOR]   <- position donnée par descriptorListOffset
+[liste des FILE DESCRIPTOR]   <- position donnée par descriptorListOffset, jusqu'à la fin du fichier
 ```
 
 Pour lire un fichier par son nom :
 
 1. lire le header archive pour trouver `descriptorListOffset` ;
-2. parcourir les File Descriptor jusqu'à trouver `name` ;
-3. aller à `offset` pour lire le header fichier, puis les données.
+2. lire les File Descriptor les uns après les autres, de `descriptorListOffset` jusqu'à la
+   fin du fichier, jusqu'à trouver `name` ;
+3. aller à `offset` pour lire le header fichier, puis les `compressedSize` octets de données
+   qui le suivent.
 
-### Header archive
+### Header archive (`BaseHeader`, 24 octets)
 
-| Type   | Champ                | Rôle                                   |
-|--------|----------------------|----------------------------------------|
-| uint16 | magicNumber          | `0xBABA` : identifie une archive Babar |
-| uint16 | version              | version du format                      |
-| uint64 | archiveSize          | taille totale de l'archive             |
-| uint64 | descriptorListOffset | position de la liste des File Descriptor |
+| Type   | Champ                | Rôle                                                       |
+|--------|----------------------|------------------------------------------------------------|
+| uint32 | magicNumber          | octets `B A B A` (`0x41424142`) : identifie une archive Babar |
+| uint32 | version              | version du format, actuellement `1`                        |
+| uint64 | dataSize             | taille totale des fichiers (headers + données), soit `descriptorListOffset - 24` |
+| uint64 | descriptorListOffset | position de la liste des File Descriptor                   |
 
-### File Descriptor
+### Header fichier (`FileHeader`)
 
-Un par fichier.
+Placé juste avant les données de chaque fichier. La partie fixe fait 24 octets, sans
+alignement.
 
-| Type   | Champ      | Rôle                                   |
-|--------|------------|----------------------------------------|
-| uint32 | nameLength | longueur du nom                        |
-| string | name       | nom du fichier dans l'archive          |
-| uint32 | offset     | position du header fichier             |
+| Type   | Champ            | Rôle                                                           |
+|--------|------------------|----------------------------------------------------------------|
+| uint64 | uncompressedSize | taille d'origine                                               |
+| uint64 | compressedSize   | taille des données stockées (égale à `uncompressedSize` sans compression) |
+| uint8  | fileType         | type de fichier (`FileType`)                                   |
+| uint8  | flags            | flags du fichier (`FileFlags`)                                 |
+| uint32 | crc32            | CRC32 des données **décompressées**, pour détecter la corruption |
+| uint16 | extensionLength  | longueur de l'extension                                        |
+| string | extension        | extension d'origine en minuscules, avec le point (`.png`, `.txt`), vide pour des données mémoire |
 
-### Header fichier
+Les données suivent directement le header. Avec le flag `Compressed`, elles forment un flux
+zlib complet (format zlib avec en-tête, comme produit par `deflateInit`), décodable avec
+`inflate`.
 
-| Type   | Champ            | Rôle                                   |
-|--------|------------------|----------------------------------------|
-| uint64 | uncompressedSize | taille d'origine                       |
-| uint64 | compressedSize   | taille stockée dans l'archive          |
-| uint8  | fileType         | type de fichier                        |
-| uint16 | extensionLength  | longueur de l'extension                |
-| string | extension        | extension d'origine (`png`, `txt`…)    |
-| uint16 | flags            | flags du fichier                       |
-| uint64 | crc32            | vérification corruption                |
+### File Descriptor (`FileDescriptor`)
+
+Un par fichier, dans l'ordre où les fichiers sont rangés dans l'archive.
+
+| Type   | Champ      | Rôle                                                   |
+|--------|------------|--------------------------------------------------------|
+| uint32 | nameLength | longueur du nom                                        |
+| string | name       | nom du fichier dans l'archive, sans extension, séparateur `/` |
+| uint64 | offset     | position du header fichier depuis le début de l'archive |
+
+La liste n'a pas de nombre d'entrées : elle s'arrête à la fin du fichier.
