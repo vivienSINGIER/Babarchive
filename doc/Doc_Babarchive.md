@@ -28,13 +28,14 @@ namespace Archive
         Error Create(fs::path _location, std::string _name);
         Error Open(fs::path _location);
 
-        Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
-        Error Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary);
+        Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary, std::string const& _key = "");
+        Error Add(char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary, std::string const& _key = "");
 
         Error Remove(std::string_view _name);
 
-        Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream);
-        Error Unpack(fs::path _unpackLocation);
+        Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream, std::string const& _key = "");
+        Error Unpack(fs::path _unpackLocation, std::unordered_map<std::string, std::string> const& _keyMap = {});
+        Error ListInfo(std::vector<FileInfo>& _files);
 
         void     SetChunkSize(uint32_t _chunkSize);
         uint32_t GetChunkSize() const;
@@ -134,13 +135,29 @@ packer.Unpack("Test/Unpack");
 
 `Unpack` recrée chaque fichier sous `_unpackLocation/<nom><extension>`, en créant les
 sous-dossiers nécessaires. Par exemple `BlueMetalPlate/sub/arm` avec l'extension `.png`
-donne `_unpackLocation/BlueMetalPlate/sub/arm.png`.
+donne `_unpackLocation/BlueMetalPlate/sub/arm.png`. Un fichier sans extension (données
+ajoutées depuis la mémoire) reçoit l'extension `.bin`.
 
 Pour chaque fichier, `Unpack` :
+- déchiffre les données si le fichier porte le flag `Encrypted`, avec la clé donnée pour son
+  nom dans `_keyMap` ;
 - décompresse les données si le fichier porte le flag `Compressed` ;
-- vérifie la taille et le CRC32 : un fichier corrompu est signalé dans l'erreur renvoyée ;
+- vérifie la taille et le CRC32 : un fichier corrompu, ou déchiffré avec une mauvaise clé,
+  est signalé dans l'erreur renvoyée ;
 - ignore, avec une erreur, les noms qui sortiraient du dossier de destination (`../`,
-  chemin absolu) et les fichiers marqués `Encrypted`.
+  chemin absolu) et les fichiers chiffrés sans clé dans `_keyMap`.
+
+### Lister le contenu
+
+`ListInfo` remplit un `FileInfo` par fichier : nom, extension, position, taille d'origine
+(`dataSize`), taille stockée (`currentSize`), et les booléens `isCompressed` et
+`isEncrypted`. Pratique pour savoir quels fichiers demandent une clé avant un `Unpack`.
+
+### Chiffrement
+
+Un fichier ajouté avec une clé non vide (`_key`) et le flag `Encrypted` est chiffré.
+Il faut redonner la même clé pour le lire (`ReadFile`) ou l'extraire (`Unpack`).
+Le chiffrement est fait avant la compression, donc un fichier chiffré se compresse mal.
 
 ### Taille des blocs
 
@@ -218,9 +235,7 @@ Les flags se combinent avec `|` et sont stockés sur un octet.
 |----------------|--------|----------------------------------------------------------|
 | `None`         | `0x00` | fichier stocké tel quel                                  |
 | `Compressed`   | `0x01` | fichier compressé avec zlib                              |
-| `Encrypted`    | `0x02` | réservé, pas encore géré (ignoré par `Unpack`)           |
-| `BigEndian`    | `0x04` | réservé, pas encore utilisé                              |
-| `LittleEndian` | `0x08` | réservé, pas encore utilisé                              |
+| `Encrypted`    | `0x02` | fichier chiffré avec la clé donnée à `Add`               |
 
 ### Types de fichier (`Archive::FileType`)
 
@@ -301,3 +316,51 @@ Un par fichier, dans l'ordre où les fichiers sont rangés dans l'archive.
 | uint64 | offset     | position du header fichier depuis le début de l'archive |
 
 La liste n'a pas de nombre d'entrées : elle s'arrête à la fin du fichier.
+
+---
+
+## 5. Ligne de commande
+
+L'exécutable `Babarchive` est une interface console construite au-dessus de la lib : la lib
+`BabarchiveLib` (`src/Archive`, `src/Core`) ne dépend pas de la console (`src/Console`) et
+peut être utilisée seule dans un autre projet.
+
+```text
+Babarchive <commande> <arguments>
+```
+
+`<arg>` est obligatoire, `(arg)` est optionnel.
+
+| Commande             | Arguments                                                   | Effet |
+|----------------------|-------------------------------------------------------------|-------|
+| `--help` / `--h`     | `(commande)`                                                | aide de toutes les commandes, ou d'une seule |
+| `--create` / `--c`   | `<dossier> <nom>`                                           | crée l'archive vide `<dossier>/<nom>.babar` |
+| `--pack` / `--p`     | `<archive> <fichier \| dossier> <nom> (compresse y/n) (clé)` | ajoute un fichier ou un dossier sous `<nom>` (sans extension). Compressé avec `y` (par défaut `n`), chiffré si une clé est donnée |
+| `--unpack` / `--u`   | `<archive> <dossier>`                                       | extrait toute l'archive, demande la clé de chaque fichier chiffré |
+| `--remove` / `--r`   | `<archive> <nom>`                                           | retire un fichier |
+| `--list` / `--l`     | `<archive>`                                                 | tableau des fichiers : extension, taille, taille stockée, ratio, compressé, chiffré |
+| `--read` / `--rd`    | `<archive> <nom> (fichier de sortie)`                       | lit un fichier vers un fichier de sortie, ou vers la sortie standard. Demande la clé s'il est chiffré, et vérifie le CRC32 |
+| `--hex` / `--x`      | `<fichier> (octets par ligne)`                              | affiche n'importe quel fichier en hexadécimal (16 octets par ligne par défaut) |
+
+Les clés sont demandées sur l'entrée standard (une par ligne), et les questions sont écrites
+sur la sortie d'erreur : `--read` vers la sortie standard ne contient que les données du
+fichier. Une clé peut contenir des espaces : la mettre entre guillemets dans `--pack`.
+
+Le code de retour vaut `0` en cas de succès, et une valeur non nulle sinon (commande
+inconnue, arguments manquants ou en trop, archive ou fichier introuvable, mauvaise clé…).
+
+Les chemins relatifs partent du dossier du projet (celui du `CMakeLists.txt`), pas du
+dossier où la commande est lancée : le programme s'y place au démarrage.
+
+Exemple complet :
+
+```text
+Babarchive --create Test archive
+Babarchive --pack Test/archive.babar Test/test.txt test y
+Babarchive --pack Test/archive.babar Test/babar.jpg image n maCle
+Babarchive --list Test/archive.babar
+Babarchive --read Test/archive.babar image Test/image_copie.jpg     (demande la clé)
+Babarchive --unpack Test/archive.babar Test/Unpack                  (demande la clé de image)
+Babarchive --remove Test/archive.babar test
+Babarchive --hex Test/archive.babar
+```

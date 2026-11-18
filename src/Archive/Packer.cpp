@@ -542,8 +542,9 @@ Error Archive::Packer::ExtractFile(std::ifstream& _in, std::ofstream& _out, File
                     }
 
                     uInt produced = m_chunkSize - zs.avail_out;
+                    // Data was encrypted before compression: decrypt the inflated bytes, then check the CRC
+                    Encryption::Decrypt(hashMap, outChunk.data(), produced, written);
                     crc = crc32(crc, reinterpret_cast<const Bytef*>(outChunk.data()), produced);
-                    Encryption::Decrypt(hashMap, chunk.data(), count, written);
                     _out.write(outChunk.data(), produced);
                     written += produced;
                } while (zs.avail_out == 0 && ret != Z_STREAM_END);
@@ -674,12 +675,7 @@ Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _i
      // Read one chunk, compress it, and finish the stream once the input is exhausted
      do
      {
-          uint64_t currOffset = (uint64_t)(_in.tellg() - dataPos);
-
           _in.read(inChunk.data(), m_chunkSize);
-          if (encrypt)
-               Encryption::Encrypt(hashes, inChunk.data(), _in.gcount(), currOffset);
-          
           const auto n = static_cast<uInt>(_in.gcount());
 
           if (_in.bad())
@@ -688,7 +684,10 @@ Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _i
                return Error::Io("couldn't read file to compress", m_location);
           }
 
+          // CRC on the original data, then encrypt (position = offset in the original file), then compress
           crc = crc32(crc, reinterpret_cast<const Bytef*>(inChunk.data()), n);
+          if (encrypt)
+               Encryption::Encrypt(hashes, inChunk.data(), n, _fHeader.fixed.uncompressedSize);
           _fHeader.fixed.uncompressedSize += n;
 
           flush = _in.eof() ? Z_FINISH : Z_NO_FLUSH;

@@ -6,20 +6,33 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_subdirectory(vendor/zlib)
 
-add_executable(Babarchive src/main.cpp
+# --- Archive library: everything needed to create, read and modify .babar archives ---
+add_library(BabarchiveLib STATIC
     src/Archive/Structs.h
     src/Archive/Packer.h        src/Archive/Packer.cpp
     src/Archive/FileStream.h    src/Archive/FileStream.cpp
     src/Archive/Encryption.hpp
-        
+
     src/Core/Error.h            src/Core/Error.cpp
     src/Core/FileHelper.h       src/Core/FileHelper.cpp
     src/Core/Logger.h           src/Core/Logger.cpp
-        
+)
+
+target_include_directories(BabarchiveLib PUBLIC src)
+# PUBLIC: FileStream.h includes zlib.h, so users of the library need zlib too
+target_link_libraries(BabarchiveLib PUBLIC ZLIB::ZLIBSTATIC)
+
+# --- Console tool: command line interface built on top of the library ---
+add_executable(Babarchive
+    src/main.cpp
+
+    src/Console/Console.h       src/Console/Console.cpp
+    src/Console/Commands.h      src/Console/Commands.cpp
+
     src/HexViewer/HexViewer.h   src/HexViewer/HexViewer.cpp
 )
 
-target_link_libraries(Babarchive PRIVATE ZLIB::ZLIBSTATIC)
+target_link_libraries(Babarchive PRIVATE BabarchiveLib)
 
 # Run the program from the folder holding this CMakeLists (paths like "Test/..." are relative to it)
 target_compile_definitions(Babarchive PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

@@ -6,48 +6,56 @@
 #include <iostream>
 #include <sstream>
 
-void HexViewer::Init(std::string const& _path)
+Error HexViewer::Init(std::string const& _path)
 {
     file = std::fstream(_path, std::ios::in | std::ios::binary);
-    
+    cursor = 0;
+
     if (!file)
-    {
-        std::cout << "Error opening file " << _path << std::endl;
-    }
+        return Error::Io("couldn't open file", _path);
+
+    return Error::Ok();
 }
 
 void HexViewer::Display(uint32_t _lineOffset)
 {
     offset = _lineOffset;
-    
+
     std::string buffer;
     buffer.resize(_lineOffset);
-    
-    bool canRead = true;
-    while (canRead)
+
+    while (true)
     {
         file.read(buffer.data(), buffer.size());
-        uint32_t count = file.gcount();
-        
-        if (count < buffer.size())
-        {
-            canRead = false;
-            buffer.resize(count);
-        }
-        
-        std::cout << GetCurrentOffset() << "\033[32m | \033[0m" << GetHexLine(buffer) << "\033[32m | \033[0m" << GetAsciiLine(buffer) << std::endl;
-        
+        uint32_t count = (uint32_t)file.gcount();
+
+        // Nothing left: don't print an empty line when the size is a multiple of the width
+        if (count == 0)
+            break;
+
+        std::string line = buffer.substr(0, count);
+
+        // Pad the hex column of the last line so the ascii column stays aligned
+        std::string hex = GetHexLine(line) + std::string((_lineOffset - count) * 3, ' ');
+
+        std::cout << GetCurrentOffset() << "\033[32m | \033[0m" << hex << "\033[32m | \033[0m" << GetAsciiLine(line) << "\n";
+
         cursor += count;
+
+        if (count < buffer.size())
+            break;
     }
+    std::cout.flush();
 }
 
 std::string HexViewer::GetCurrentOffset() const
 {
     std::stringstream stream;
     stream << "\033[38;2;255;165;0m";
-    
-    stream << std::setfill ('0') << std::setw(8) 
-       << std::hex << cursor * offset;
+
+    // cursor already counts bytes
+    stream << std::setfill ('0') << std::setw(8)
+       << std::hex << cursor;
     stream << "\033[0m";
     std::string result( stream.str());
     return result;
