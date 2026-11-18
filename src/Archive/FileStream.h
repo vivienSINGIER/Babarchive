@@ -21,7 +21,8 @@ public:
     virtual ~FileStream() = default;
     
     virtual Error Open(fs::path const& _path, uint64_t _startOffset, uint64_t _count);
-    virtual Error Read(const char* _data, uint64_t count);
+    // Reads up to _count bytes of (decompressed) file data into _data, ReadCount() gives how many were read
+    virtual Error Read(char* _data, uint64_t _count) = 0;
     virtual bool IsAtEnd();
     virtual bool IsFinished();
     
@@ -43,27 +44,29 @@ protected:
     std::array<std::string, 3> m_hashKeys;
     bool m_decrypt;
 };
-    
+
 class UncompressedFileStream : public FileStream
 {
 public:
-    Error Read(char* _data, uint64_t count);
+    Error Read(char* _data, uint64_t _count) override;
 };
-    
+
 class CompressedFileStream : public FileStream
 {
 public:
     CompressedFileStream() = default;
-    ~CompressedFileStream();
-    
+    ~CompressedFileStream() override;
+
     Error Open(fs::path const& _path, uint64_t _startOffset, uint64_t _count) override;
-    Error Read(char* _data, uint64_t _count);
+    Error Read(char* _data, uint64_t _count) override;
+    bool IsAtEnd() override;
     bool IsFinished() override;
 private:
-    z_stream m_stream;
+    z_stream m_stream{};
+    bool m_initialized = false;
     char m_in[STREAM_BUFFER_SIZE];
-    uint64_t m_compressedLeft;
-    bool m_finished;
+    uint64_t m_compressedLeft = 0;
+    bool m_finished = false;
 };
     
 }
