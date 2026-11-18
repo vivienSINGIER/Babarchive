@@ -24,7 +24,7 @@ namespace Archive
         
         Error Remove(std::string_view _name);
         
-        Error Unpack(fs::path _unpackLocation, std::unordered_map<std::string, std::string> const& _keyMap);
+        Error Unpack(fs::path _unpackLocation, std::unordered_map<std::string, std::string> const& _keyMap = {});
         
         Error ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream, std::string const& _key = "");
         

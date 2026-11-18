@@ -24,14 +24,16 @@ int main()
     
     std::string key = "ceci est une clé de test";
     
-    e = packer.Add("Test/test.txt", "test", Archive::FileFlags::Compressed | Archive::FileFlags::Encrypted, Archive::FileType::Text);
-    std::cout << e.Format() << "\n";
+    // e = packer.Add("Test/test.txt", "Patate/test", Archive::FileFlags::Compressed, Archive::FileType::Text);
+    // std::cout << e.Format() << "\n";
+    //
+    // e = packer.Add("Test/testVE2.txt", "test2", Archive::FileFlags::None, Archive::FileType::Text, key);
+    // std::cout << e.Format() << "\n";
+    //
+    // e = packer.Add("Test/babar.jpg", "image", Archive::FileFlags::None, Archive::FileType::Binary);
+    // std::cout << e.Format() << "\n";
     
-    e = packer.Add("Test/testVE2.txt", "test2", Archive::FileFlags::None, Archive::FileType::Text, key);
-    std::cout << e.Format() << "\n";
-    
-    e = packer.Add("Test/babar.jpg", "image", Archive::FileFlags::None, Archive::FileType::Binary);
-    std::cout << e.Format() << "\n";
+    e = packer.Add("Test/ToPack", "test", Archive::FileFlags::None);
     
     // e = packer.Remove("test");
     // std::cout << e.Format() << "\n";
@@ -51,10 +53,10 @@ int main()
     //           << "  extension:    " << f.extension << '\n';
     // }
     
-    std::unordered_map<std::string, std::string> keyMap;
-    keyMap["test2"] = key;
+    // std::unordered_map<std::string, std::string> keyMap;
+    // keyMap["test2"] = key;
     
-    e = packer.Unpack("Test/Unpack", keyMap);
+    e = packer.Unpack("Test/Unpack");
     std::cout << e.Format() << "\n";
     
     return 0;

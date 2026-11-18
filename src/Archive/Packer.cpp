@@ -448,7 +448,7 @@ Error Archive::Packer::Unpack(fs::path _unpackLocation, std::unordered_map<std::
                }
           }
           
-          dst += fHeader.extension;
+          dst += fHeader.extension.empty() ? ".bin" : fHeader.extension;
           
           if (Error e = FileHelper::CreateDir(dst.parent_path()))
           {
