@@ -19,8 +19,6 @@ namespace Archive
         None = 0,
         Compressed = 0b00000001,
         Encrypted = 0b00000010,
-        BigEndian = 0b00000100,
-        LittleEndian = 0b00001000,
     };
     
     struct BaseHeader
@@ -68,6 +66,20 @@ namespace Archive
         {
             return sizeof(FileHeaderFixed) + sizeof(char) * fixed.extensionLength;
         }
+    };
+    
+    struct FileInfo
+    {
+        std::string name;
+        uint64_t offset;
+        
+        uint64_t currentSize;
+        uint64_t dataSize;
+        
+        bool isCompressed = false;
+        bool isEncrypted = false;
+        
+        std::string extension;
     };
     
 }

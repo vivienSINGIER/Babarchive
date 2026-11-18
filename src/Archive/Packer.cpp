@@ -7,6 +7,8 @@
 
 #include <zlib.h>
 
+#include "Encryption.hpp"
+
 Archive::Packer::Packer()
 {
      m_isOpen = false;  
@@ -68,7 +70,7 @@ Error Archive::Packer::Create(fs::path _location, std::string _name)
      return Error::Ok();
 }
 
-Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type)
+Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type, std::string const& _key)
 {
      if (m_isOpen == false)
           return Error::Io("cannot write on non created archive file", m_location);
@@ -110,13 +112,16 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
           }
      }
      
+     if (_key.length() != 0)
+          _flags |= FileFlags::Encrypted;
+     
      // Write the files
      if (!isDir) // One single file given
      {
           std::ifstream in(_file, std::ios::in | std::ios::binary);
           if (in.is_open() == false)
                err.details.push_back(Error::Io("couldn't open targeted file", _file).Format());
-          else if (Error e = WriteEntry(out, in, _name, FileHelper::ExtLower(_file), _flags, _type))
+          else if (Error e = WriteEntry(out, in, _name, FileHelper::ExtLower(_file), _flags, _type, _key))
                err.details.push_back(e.Format());
      }
      else // Loop over each file in given directory
@@ -139,7 +144,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
                     continue;
                }
 
-               if (Error e = WriteEntry(out, in, fPath.generic_string(), FileHelper::ExtLower(f), _flags, _type))
+               if (Error e = WriteEntry(out, in, fPath.generic_string(), FileHelper::ExtLower(f), _flags, _type, _key))
                     err.details.push_back(e.Format());
           }
      }
@@ -152,7 +157,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
      return Error::Ok();
 }
 
-Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type)
+Error Archive::Packer::Add(char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type, std::string const& _key)
 {
      if (m_isOpen == false)
           return Error::Io("cannot write on non created archive file", m_location);
@@ -170,7 +175,7 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
      // Wrap the data in a stream so it goes through the same write path as files
      std::istringstream in(std::string(_data, _count), std::ios::in | std::ios::binary);
 
-     if (Error e = WriteEntry(out, in, _name, "", _flags, _type))
+     if (Error e = WriteEntry(out, in, _name, "", _flags, _type, _key))
           err.details.push_back(e.Format());
 
      if (Error e = WriteIndex(out))
@@ -181,7 +186,8 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
      return Error::Ok();
 }
 
-Error Archive::Packer::WriteEntry(std::ofstream& _out, std::istream& _in, std::string const& _name, std::string const& _extension, uint8_t _flags, uint8_t _type)
+Error Archive::Packer::WriteEntry(std::ofstream& _out, std::istream& _in, std::string const& _name, 
+     std::string const& _extension, uint8_t _flags, uint8_t _type, std::string const& _key)
 {
      FileHeader fHeader{};
      fHeader.extension = _extension;
@@ -195,8 +201,8 @@ Error Archive::Packer::WriteEntry(std::ofstream& _out, std::istream& _in, std::s
      d.name = _name;
 
      Error e = (_flags & FileFlags::Compressed)
-          ? WriteFileCompressed(_out, _in, fHeader)
-          : WriteFile(_out, _in, fHeader);
+          ? WriteFileCompressed(_out, _in, fHeader, _key)
+          : WriteFile(_out, _in, fHeader, _key);
 
      if (e)
      {
@@ -308,7 +314,7 @@ Error Archive::Packer::Remove(std::string_view _name)
      return Error::Ok();
 }
 
-Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream)
+Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, std::unique_ptr<FileStream>& _stream, std::string const& _key)
 {
      if (m_isOpen == false)
           return Error::Io("cannot read non created archive file", m_location);
@@ -356,12 +362,50 @@ Error Archive::Packer::ReadFile(std::string const& _name, FileHeader& _header, s
      if (Error e = ptr->Open(m_location, strOffset, dataSize))
           return e;
      
+     if (_header.fixed.flags & FileFlags::Encrypted)
+          ptr->SetDecryptionKey(_key);
+     
      _stream = std::move(ptr);
      
      return Error::Ok();
 }
 
-Error Archive::Packer::Unpack(fs::path _unpackLocation)
+Error Archive::Packer::ListInfo(std::vector<FileInfo>& _files)
+{
+     if (m_isOpen == false)
+          return Error::Io("cannot read non created archive file", m_location);
+     
+     if (m_descriptors.size() == 0)
+          return Error::Ok();
+     
+     std::ifstream src(m_location, std::ios::in | std::ios::binary);
+     if (src.is_open() == false)
+          return Error::Io("couldn't open archive file", m_location);
+     
+     Error err = Error::Io("failed to list archive file", m_location);
+     
+     for (int i = 0; i < m_descriptors.size(); i++)
+     {
+          FileHeader fHeader;
+          if (Error e = ReadFileHeader(src, m_descriptors[i].offset, fHeader))
+               err.details.push_back(e.Format());
+               
+          FileInfo info;
+          info.name = m_descriptors[i].name;
+          info.offset = m_descriptors[i].offset;
+          info.dataSize = fHeader.fixed.uncompressedSize;
+          info.currentSize = fHeader.fixed.compressedSize;
+          info.isEncrypted = fHeader.fixed.flags & FileFlags::Encrypted;
+          info.isCompressed = fHeader.fixed.flags & FileFlags::Compressed;
+          info.extension = fHeader.extension;
+          
+          _files.push_back(info);
+     }
+     
+     return err.details.empty() ? Error::Ok() : err;
+}
+
+Error Archive::Packer::Unpack(fs::path _unpackLocation, std::unordered_map<std::string, std::string> const& _keyMap)
 {
      if (m_isOpen == false)
           return Error::Io("cannot unpack archive file", m_location);
@@ -394,14 +438,17 @@ Error Archive::Packer::Unpack(fs::path _unpackLocation)
                err.details.push_back(e.Format());
                continue;
           }
-
+          
           if (fHeader.fixed.flags & FileFlags::Encrypted)
           {
-               err.details.push_back(Error::Io("encrypted files are not supported yet, skipped '" + desc.name + "'", m_location).Format());
-               continue;
+               if (!_keyMap.contains(desc.name))
+               {
+                    err.details.push_back(Error::Io("no key given for encrypted file, skipped '" + desc.name + "'", m_location).Format());
+                    continue;    
+               }
           }
-
-          dst += fHeader.extension;
+          
+          dst += fHeader.extension.empty() ? ".bin" : fHeader.extension;
           
           if (Error e = FileHelper::CreateDir(dst.parent_path()))
           {
@@ -416,7 +463,8 @@ Error Archive::Packer::Unpack(fs::path _unpackLocation)
                continue;
           }
 
-          if (Error e = ExtractFile(src, out, fHeader))
+          std::string key = _keyMap.contains(desc.name) ? _keyMap.at(desc.name) : "";
+          if (Error e = ExtractFile(src, out, fHeader, key))
           {
                e.path = dst;
                err.details.push_back(e.Format());
@@ -428,7 +476,7 @@ Error Archive::Packer::Unpack(fs::path _unpackLocation)
      return Error::Ok();
 }
 
-Error Archive::Packer::ExtractFile(std::ifstream& _in, std::ofstream& _out, FileHeader const& _fHeader)
+Error Archive::Packer::ExtractFile(std::ifstream& _in, std::ofstream& _out, FileHeader const& _fHeader, std::string const& _key)
 {
      std::string chunk;
      chunk.resize(m_chunkSize);
@@ -437,6 +485,10 @@ Error Archive::Packer::ExtractFile(std::ifstream& _in, std::ofstream& _out, File
      uint64_t written = 0;
      uint64_t toRead = _fHeader.fixed.compressedSize;
 
+     bool decrypt = (_fHeader.fixed.flags & FileFlags::Encrypted) && _key.size() != 0;
+     
+     std::array<std::string, 3> hashMap = Encryption::GetHashes(_key);
+     
      if ((_fHeader.fixed.flags & FileFlags::Compressed) == 0)
      {
           while (toRead > 0)
@@ -445,6 +497,8 @@ Error Archive::Packer::ExtractFile(std::ifstream& _in, std::ofstream& _out, File
                if (!_in.read(chunk.data(), count))
                     return Error::Io("unexpected end of archive while reading file data", m_location);
 
+               Encryption::Decrypt(hashMap, chunk.data(), count, written);
+               
                crc = crc32(crc, reinterpret_cast<const Bytef*>(chunk.data()), (uInt)count);
                _out.write(chunk.data(), count);
 
@@ -489,6 +543,7 @@ Error Archive::Packer::ExtractFile(std::ifstream& _in, std::ofstream& _out, File
 
                     uInt produced = m_chunkSize - zs.avail_out;
                     crc = crc32(crc, reinterpret_cast<const Bytef*>(outChunk.data()), produced);
+                    Encryption::Decrypt(hashMap, chunk.data(), count, written);
                     _out.write(outChunk.data(), produced);
                     written += produced;
                } while (zs.avail_out == 0 && ret != Z_STREAM_END);
@@ -545,7 +600,7 @@ Error Archive::Packer::WriteDescriptor(std::ofstream& _out, FileDescriptor const
      return Error::Ok();
 }
 
-Error Archive::Packer::WriteFile(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader)
+Error Archive::Packer::WriteFile(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader, std::string const& _key)
 {
      std::streampos pos = _out.tellp();
      std::streampos dataPos = pos + std::streampos(_fHeader.DataSize());
@@ -560,11 +615,16 @@ Error Archive::Packer::WriteFile(std::ofstream& _out, std::istream& _in, FileHea
      _fHeader.fixed.compressedSize = 0;
      _fHeader.fixed.uncompressedSize = 0;
      
+     bool encrypt = _fHeader.fixed.flags & FileFlags::Encrypted;
+     
+     std::array<std::string, 3> hashes = Encryption::GetHashes(_key);
+     
      while (_in.read(chunk.data(), m_chunkSize) || _in.gcount() > 0)
      {
           crc = crc32(crc, reinterpret_cast<const Bytef*>(chunk.data()), _in.gcount());
           
-          // TODO Add encryption step
+          if (encrypt)
+               Encryption::Encrypt(hashes, chunk.data(), _in.gcount(), _fHeader.fixed.uncompressedSize);
           _fHeader.fixed.uncompressedSize += _in.gcount();
           
           _out.write(chunk.data(), _in.gcount());
@@ -585,7 +645,7 @@ Error Archive::Packer::WriteFile(std::ofstream& _out, std::istream& _in, FileHea
      return Error::Ok();
 }
 
-Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader)
+Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader, std::string const& _key)
 {
      z_stream zs{};
      if (deflateInit(&zs, 1) != Z_OK)
@@ -607,10 +667,19 @@ Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _i
      int flush = Z_NO_FLUSH;
      int ret = Z_OK;
 
+     bool encrypt = _fHeader.fixed.flags & FileFlags::Encrypted;
+
+     std::array<std::string, 3> hashes = Encryption::GetHashes(_key);
+     
      // Read one chunk, compress it, and finish the stream once the input is exhausted
      do
      {
+          uint64_t currOffset = (uint64_t)(_in.tellg() - dataPos);
+
           _in.read(inChunk.data(), m_chunkSize);
+          if (encrypt)
+               Encryption::Encrypt(hashes, inChunk.data(), _in.gcount(), currOffset);
+          
           const auto n = static_cast<uInt>(_in.gcount());
 
           if (_in.bad())

@@ -1,5 +1,6 @@
 ﻿#include "FileStream.h"
 
+#include "Encryption.hpp"
 #include <algorithm>
 
 Error Archive::FileStream::Open(fs::path const& _path, uint64_t _startOffset, uint64_t _count)
@@ -14,11 +15,12 @@ Error Archive::FileStream::Open(fs::path const& _path, uint64_t _startOffset, ui
     m_cursorOffset = 0;
     m_readCount = 0;
     m_readTotal = 0;
-
+    m_decrypt = false;
+    
     m_file.seekg(_startOffset);
     if (!m_file)
         return Error::Io("Failed to seek to file data", _path);
-
+    
     return Error::Ok();
 }
 
@@ -49,6 +51,12 @@ void Archive::FileStream::SetCursorOffset(uint64_t _cursorOffset)
     m_file.seekg(m_startOffset + m_cursorOffset);
 }
 
+void Archive::FileStream::SetDecryptionKey(std::string const& _key)
+{
+    m_decrypt = true;
+    m_hashKeys = Encryption::GetHashes(_key);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Error Archive::UncompressedFileStream::Read(char* _data, uint64_t _count)
@@ -57,12 +65,14 @@ Error Archive::UncompressedFileStream::Read(char* _data, uint64_t _count)
 
     if (IsAtEnd())
         return Error::Io("Failed to read file, cursor out of bounds");
-
-    // Never read past the end of this file's data
+    
     uint64_t toRead = std::min<uint64_t>(_count, m_count - m_cursorOffset);
     m_file.read(_data, (std::streamsize)toRead);
-
-    m_readCount = (uint64_t)m_file.gcount();
+    
+    if (m_decrypt)
+        Encryption::Decrypt(m_hashKeys, _data, _count, m_cursorOffset);
+    
+    m_readCount = m_file.gcount();
     m_readTotal += m_readCount;
     m_cursorOffset += m_readCount;
 
@@ -135,8 +145,12 @@ Error Archive::CompressedFileStream::Read(char* _data, uint64_t _count)
             return Error::Io("Corrupted compressed data");
     }
 
-    m_readCount = requested - m_stream.avail_out;
+    m_readCount = _count - requested;
     m_readTotal += m_readCount;
+
+    if (m_decrypt)
+        Encryption::Decrypt(m_hashKeys, _data, _count, m_cursorOffset);
+
     m_cursorOffset += m_readCount; // position in the decompressed data
 
     return Error::Ok();
