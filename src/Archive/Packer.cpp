@@ -200,7 +200,7 @@ Error Archive::Packer::WriteEntry(std::ofstream& _out, std::istream& _in, std::s
 
      if (e)
      {
-          // Drop the partially written entry: the next one (or the index) will overwrite it
+          // On laisse ça sera overwrite
           _out.clear();
           _out.seekp(d.offset);
           return e;
@@ -229,7 +229,7 @@ Error Archive::Packer::WriteIndex(std::ofstream& _out)
 
      _out.close();
 
-     // Previous index may have been longer (failed entry overwritten), cut what's left of it
+     // If previous too long we cut
      std::error_code ec;
      if (fs::file_size(m_location, ec) > indexEnd && !ec)
           fs::resize_file(m_location, indexEnd, ec);
