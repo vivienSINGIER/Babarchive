@@ -70,7 +70,7 @@ Error Archive::UncompressedFileStream::Read(char* _data, uint64_t _count)
     m_file.read(_data, (std::streamsize)toRead);
     
     if (m_decrypt)
-        Encryption::Decrypt(m_hashKeys, _data, count, m_cursorOffset);
+        Encryption::Decrypt(m_hashKeys, _data, _count, m_cursorOffset);
     
     m_readCount = m_file.gcount();
     m_readTotal += m_readCount;
