@@ -37,8 +37,7 @@ namespace
         return _packer.Open(_path);
     }
 
-    // Prompts go to stderr so they never mix with data written to stdout (--read without output file)
-    std::string PromptKey(std::string const& _name)
+    std::string AskForKey(std::string const& _name)
     {
         std::cerr << "'" << _name << "' est chiffre. Cle : " << std::flush;
         std::string key;
@@ -123,7 +122,7 @@ int Console::Commands::Unpack(Args const& _args)
     for (Archive::FileInfo const& file : files)
     {
         if (file.isEncrypted)
-            keyMap[file.name] = PromptKey(file.name);
+            keyMap[file.name] = AskForKey(file.name);
     }
 
     if (Error e = packer.Unpack(_args[1], keyMap))
@@ -214,7 +213,7 @@ int Console::Commands::Read(Args const& _args)
     if (FindInfo(files, _args[1], info) == false)
         return Report(Error::Io("fichier '" + _args[1] + "' introuvable dans l'archive", _args[0]));
 
-    std::string const key = info.isEncrypted ? PromptKey(info.name) : "";
+    std::string const key = info.isEncrypted ? AskForKey(info.name) : "";
 
     Archive::FileHeader header;
     std::unique_ptr<Archive::FileStream> stream;
