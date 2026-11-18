@@ -18,7 +18,7 @@ namespace Archive
         Error Create(fs::path _location, std::string _name);
         
         Error Add(fs::path _file, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary, std::string const& _key = "");
-        Error Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary, std::string const& _key = "");
+        Error Add(char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type = FileType::Binary, std::string const& _key = "");
         
         Error Remove(std::string_view _name);
         

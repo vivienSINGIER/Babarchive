@@ -68,7 +68,7 @@ Error Archive::UncompressedFileStream::Read(char* _data, uint64_t count)
     m_file.read(_data, count);
     
     if (m_decrypt)
-        Encryption::Decrypt(m_hashKeys, _data, count);
+        Encryption::Decrypt(m_hashKeys, _data, count, m_cursorOffset);
     
     m_readCount = m_file.gcount();
     m_readTotal += m_readCount;
@@ -133,7 +133,8 @@ Error Archive::CompressedFileStream::Read(char* _data, uint64_t _count)
     }
     m_readCount = _count - m_stream.avail_out;
     if (m_decrypt)
-        Encryption::Decrypt(m_hashKeys, _data, _count);
+        Encryption::Decrypt(m_hashKeys, _data, _count, m_cursorOffset);
+    m_cursorOffset = m_file.tellg();
     return Error::Ok();
 }
 

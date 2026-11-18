@@ -8,6 +8,9 @@ namespace Encryption
     inline std::array<std::string, 3> GetHashes(std::string const& _key)
     {
         std::array<std::string, 3> hashs = {"", "", ""};
+        if (_key.empty())
+            return hashs;
+        
         int hashLengthDiff = 20;
         for (int i = 0; i < 3; i++)
         {
@@ -29,24 +32,32 @@ namespace Encryption
         return hashs;
     }
     
-    inline void Encrypt(std::array<std::string, 3> const& _hashes, char* _data, uint64_t _dataLength)
+    inline void Encrypt(std::array<std::string, 3> const& _hashes, char* _data, uint64_t _dataLength, uint64_t _offset)
     {
+        if (_hashes[0].empty())
+            return;
+        
         for (uint64_t i = 0; i < _dataLength; i++)
         {
+            uint64_t index = _offset + i;
             for (int h = 0; h < 3; h++)
             {
-                _data[i] = _data[i] + _hashes[h][i % _hashes[h].length()];
+                _data[index] = _data[index] + _hashes[h][index % _hashes[h].length()];
             }   
         }
     }
     
-    inline void Decrypt(std::array<std::string, 3> const& _hashes, char* _data, uint64_t _dataLength)
+    inline void Decrypt(std::array<std::string, 3> const& _hashes, char* _data, uint64_t _dataLength, uint64_t _offset)
     {
+        if (_hashes[0].empty())
+            return;
+        
         for (uint64_t i = 0; i < _dataLength; i++)
         {
+            uint64_t index = _offset + i;
             for (int h = 2; h >= 0; h--)
             {
-                _data[i] = _data[i] - _hashes[h][i % _hashes[h].length()];
+                _data[index] = _data[index] - _hashes[h][index % _hashes[h].length()];
             }
         }
     }
