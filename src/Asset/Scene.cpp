@@ -6,7 +6,7 @@ namespace
     {
         while (!_str.empty() && (_str.front() == ' ' || _str.front() == '\r' || _str.front() == '\n'))
             _str.remove_prefix(1);
-        while (!_str.empty() && (_str.back() == ' ' || _str.front() == '\r' || _str.front() == '\n'))
+        while (!_str.empty() && (_str.back() == ' ' || _str.back() == '\r' || _str.back() == '\n'))
             _str.remove_suffix(1);
         return _str;
     }
