@@ -1,5 +1,7 @@
 # CMake build directories
 out/
+ build/                                                                                                                                                                                                                       
+  cmake-build-*/
 
 # IDE directories
 .idea/
@@ -9,6 +11,7 @@ out/
 # Compiled files
 *.o
 *.obj
+!Test/*.obj
 *.exe
 *.out
 *.app
