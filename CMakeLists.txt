@@ -29,6 +29,7 @@ add_library(BabarsetEngine STATIC
     src/Asset/Scene.h           src/Asset/Scene.cpp
     
     src/Asset/Importers/BMPLoader.cpp
+    src/Asset/Importers/ObjLoader.cpp
 )
 target_link_libraries(BabarsetEngine PUBLIC Babarchive)
 

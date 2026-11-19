@@ -11,7 +11,7 @@ namespace Asset
     
     Error ImportBmp(fs::path const& _src, std::vector<char>& _out);
     Error ImportObj(fs::path const& _src, std::vector<char>& _out);
-    Error ImportWav(fs::path const& _src, std::vector<char>& _out);
+    // Error ImportWav(fs::path const& _src, std::vector<char>& _out);
 }
 
 #endif

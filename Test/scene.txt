@@ -1,6 +1,7 @@
 # Test scene: several objects sharing one external texture (chat.bmp)
 
 [ext_resource id=1 type="Image" name="chat"]
+[ext_resource id=2 type="Mesh" name="monke"]
 
 [object name="Root"]
 position = (0.0, 0.0, 0.0)
@@ -10,12 +11,14 @@ position = (1.0, 0.0, 0.0)
 rotation = (0.0, 0.0, 0.0, 1.0)
 scale = (1.0, 1.0, 1.0)
 texture = ExtResource(1)
+mesh = ExtResource(2)
 
 [object name="BigCat" parent="Root"]
 position = (-2.0, 0.0, 3.5)
 rotation = (0.0, 0.7071, 0.0, 0.7071)
 scale = (2.0, 2.0, 2.0)
 texture = ExtResource(1)
+mesh = ExtResource(2)
 
 [object name="Kitten" parent="Cat"]
 position = (0.0, 0.5f, 0.0)

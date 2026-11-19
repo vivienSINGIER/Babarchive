@@ -46,6 +46,11 @@ int main()
         std::cout << e.Format() << "\n";
         return e.Exit();
     }
+    if (Error e = Asset::Pack(packer, "Test/singe.obj", "monke"))
+    {
+        std::cout << e.Format() << "\n";
+        return e.Exit();
+    }
 
     // Load the scene back and print its objects
     Asset::AssetHandler assets;
@@ -65,8 +70,13 @@ int main()
         PrintFloats("position: ", o.transform.position, 3);
         PrintFloats("rotation: ", o.transform.rotation, 4);
         PrintFloats("scale:    ", o.transform.scale, 3);
-        std::cout << "    mesh:     " << (o.mesh.IsValid() ? "yes" : "<none>") << "\n";
 
+        if (Asset::MeshView m = Asset::GetMesh(scene.m_arena, o.mesh); m.header)
+            std::cout << "    mesh:  " << m.header->vertexCount<< " vertices | " << m.header->indexCount << " indices "
+                      << " (offset " << o.mesh.offset << ", " << o.mesh.size << " bytes)\n";
+        else
+            std::cout << "    mesh:  <none>\n";
+        
         if (Asset::ImageView img = Asset::GetImage(scene.m_arena, o.texture); img.header)
             std::cout << "    texture:  " << img.header->width << "x" << img.header->height
                       << " (offset " << o.texture.offset << ", " << o.texture.size << " bytes)\n";

@@ -23,11 +23,11 @@ Error Asset::Pack(Archive::Packer& _packer, std::string const& _src, std::string
         type = AssetType::Mesh;
         e = ImportObj(_src, res);
     }
-    else if (ext == ".wav")
-    {
-        type = AssetType::Sound;
-        e = ImportWav(_src, res);
-    }
+    // else if (ext == ".wav")
+    // {
+    //     type = AssetType::Sound;
+    //     e = ImportWav(_src, res);
+    // }
     else 
         return Error::Io("unsupported asset extension '" + ext + "'", _src);
     
@@ -37,12 +37,7 @@ Error Asset::Pack(Archive::Packer& _packer, std::string const& _src, std::string
     return _packer.Add(res.data(), res.size(), _filename, _flags, static_cast<uint8_t>(type));
 }
 
-Error Asset::ImportObj(fs::path const& _src, std::vector<char>& _out)
-{
-    return Error::Ok();
-}
-
-Error Asset::ImportWav(fs::path const& _src, std::vector<char>& _out)
-{
-    return Error::Ok();
-}
+// Error Asset::ImportWav(fs::path const& _src, std::vector<char>& _out)
+// {
+//     return Error::Ok();
+// }
