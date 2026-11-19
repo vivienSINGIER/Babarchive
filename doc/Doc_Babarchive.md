@@ -337,11 +337,11 @@ Babarchive <commande> <arguments>
 | `--unpack` / `--u`   | `<archive> <dossier>`                                       | extrait toute l'archive, demande la clé de chaque fichier chiffré |
 | `--remove` / `--r`   | `<archive> <nom>`                                           | retire un fichier |
 | `--list` / `--l`     | `<archive>`                                                 | tableau des fichiers : extension, taille, taille stockée, ratio, compressé, chiffré |
-| `--read` / `--rd`    | `<archive> <nom> (fichier de sortie)`                       | lit un fichier vers un fichier de sortie, ou vers la sortie standard. Demande la clé s'il est chiffré, et vérifie le CRC32 |
+| `--read` / `--rd`    | `<archive> <nom> <fichier de sortie>`                       | lit un fichier vers un fichier de sortie (obligatoire). Demande la clé s'il est chiffré, et vérifie le CRC32 |
 | `--hex` / `--x`      | `<fichier> (octets par ligne)`                              | affiche n'importe quel fichier en hexadécimal (16 octets par ligne par défaut) |
 
 Les clés sont demandées ligne par ligne.
-`--read` vers la sortie standard ne contient que les données du fichier.
+Si `--read` échoue (mauvaise clé, CRC invalide…), le fichier de sortie est supprimé.
 Si une clé contient des espaces il faut la mettre entre guillemets dans `--pack`.
 
 Le code de retour vaut `0` en cas de succès, et une valeur non nulle sinon (commande inconnue, arguments manquants ou en trop, archive ou fichier introuvable, mauvaise clé…).

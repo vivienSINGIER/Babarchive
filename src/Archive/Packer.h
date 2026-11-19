@@ -30,8 +30,6 @@ namespace Archive
         
         Error ListInfo(std::vector<FileInfo>& _files);
         
-        // Add Reads
-        
         void SetChunkSize(uint32_t _chunkSize);
         uint32_t GetChunkSize() const;
     private:
@@ -45,9 +43,8 @@ namespace Archive
         Error WriteHeader(std::ofstream& _out, BaseHeader const& _header);
         Error WriteDescriptor(std::ofstream& _out, FileDescriptor const& _desc);
         
-        // Writes one file entry (header + data) at the current position and registers its descriptor
+
         Error WriteEntry(std::ofstream& _out, std::istream& _in, std::string const& _name, std::string const& _extension, uint8_t _flags, uint8_t _type, std::string const& _key);
-        // Writes the descriptor list after the last entry and updates the base header
         Error WriteIndex(std::ofstream& _out);
 
         Error WriteFile(std::ofstream& _out, std::istream& _in, FileHeader& _fHeader, std::string const& _key);

@@ -21,7 +21,6 @@ public:
     virtual ~FileStream() = default;
     
     virtual Error Open(fs::path const& _path, uint64_t _startOffset, uint64_t _count);
-    // Reads up to _count bytes of (decompressed) file data into _data, ReadCount() gives how many were read
     virtual Error Read(char* _data, uint64_t _count) = 0;
     virtual bool IsAtEnd();
     virtual bool IsFinished();

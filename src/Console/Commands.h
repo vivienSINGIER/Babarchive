@@ -3,7 +3,6 @@
 
 #include "Console.h"
 
-// One handler per console command. The argument count is already checked by Console::Run.
 namespace Console::Commands
 {
     int Help(Args const& _args);

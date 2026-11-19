@@ -9,11 +9,6 @@
 
 #include <zlib.h>
 
-#ifdef _WIN32
-#include <fcntl.h>
-#include <io.h>
-#endif
-
 #include "Archive/Packer.h"
 #include "Core/Logger.h"
 #include "HexViewer/HexViewer.h"
@@ -92,7 +87,6 @@ int Console::Commands::Pack(Args const& _args)
     else if (compressed != "n")
         return UsageError("Argument de compression invalide '" + compressed + "', attendu : y ou n");
 
-    // No Encrypted flag here: the library encrypts when, and only when, the key is not empty
     Archive::Packer packer;
     if (Error e = OpenArchive(_args[0], packer))
         return Report(e);
@@ -218,23 +212,9 @@ int Console::Commands::Read(Args const& _args)
     if (Error e = packer.ReadFile(_args[1], header, stream, key))
         return Report(e);
 
-    bool const toFile = _args.size() > 2;
-    std::ofstream file;
-    if (toFile)
-    {
-        file.open(_args[2], std::ios::out | std::ios::binary | std::ios::trunc);
-        if (file.is_open() == false)
-            return Report(Error::Io("impossible de creer le fichier de sortie", _args[2]));
-    }
-    else
-    {
-#ifdef _WIN32
-        // Write the bytes as they are, without \n -> \r\n conversion
-        std::cout.flush();
-        _setmode(_fileno(stdout), _O_BINARY);
-#endif
-    }
-    std::ostream& out = toFile ? static_cast<std::ostream&>(file) : std::cout;
+    std::ofstream out(_args[2], std::ios::out | std::ios::binary | std::ios::trunc);
+    if (out.is_open() == false)
+        return Report(Error::Io("impossible de creer le fichier de sortie", _args[2]));
 
     char buffer[STREAM_BUFFER_SIZE];
     uLong crc = crc32(0L, Z_NULL, 0);
@@ -250,26 +230,24 @@ int Console::Commands::Read(Args const& _args)
         crc = crc32(crc, reinterpret_cast<const Bytef*>(buffer), (uInt)stream->ReadCount());
         out.write(buffer, (std::streamsize)stream->ReadCount());
     }
+
     out.flush();
 
-    // The stream doesn't check the data, a wrong key or a corrupted archive is detected here
     if (!readError && (uint32_t)crc != header.fixed.crc32)
         readError = Error::Io("CRC invalide pour '" + _args[1] + "' : mauvaise cle ou archive corrompue", _args[0]);
+
     if (!readError && !out)
         readError = Error::Io("erreur d'ecriture de la sortie");
 
     if (readError)
     {
-        if (toFile)
-        {
-            file.close();
-            FileHelper::RemoveFile(_args[2]);
-        }
+        out.close();
+        FileHelper::RemoveFile(_args[2]);
         return Report(readError);
     }
 
-    if (toFile)
-        std::cout << "Lu : " << _args[1] << " -> " << _args[2] << " (" << FormatSize(header.fixed.uncompressedSize) << ")\n";
+    std::cout << "Lu : " << _args[1] << " -> " << _args[2] << " (" << FormatSize(header.fixed.uncompressedSize) << ")\n";
+
     return 0;
 }
 
@@ -282,8 +260,10 @@ int Console::Commands::Hex(Args const& _args)
         {
             size_t used = 0;
             unsigned long value = std::stoul(_args[1], &used);
+
             if (used != _args[1].size() || value == 0 || value > 256)
                 throw std::out_of_range("width");
+
             width = (uint32_t)value;
         }
         catch (std::exception const&)
@@ -293,6 +273,7 @@ int Console::Commands::Hex(Args const& _args)
     }
 
     HexViewer viewer;
+
     if (Error e = viewer.Init(_args[0]))
         return Report(e);
 

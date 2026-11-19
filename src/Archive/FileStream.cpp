@@ -132,8 +132,6 @@ Error Archive::CompressedFileStream::Read(char* _data, uint64_t _count)
             if (got == 0)
                 return Error::Io("Failed to read compressed data");
 
-            // The stored compressed bytes are encrypted: decrypt them before inflating.
-            // Position = compressed bytes already read (m_count is the compressed size)
             if (m_decrypt)
                 Encryption::Decrypt(m_hashKeys, m_in, got, m_count - m_compressedLeft);
 
@@ -153,7 +151,7 @@ Error Archive::CompressedFileStream::Read(char* _data, uint64_t _count)
     m_readCount = requested - m_stream.avail_out;
     m_readTotal += m_readCount;
 
-    m_cursorOffset += m_readCount; // position in the decompressed data
+	m_cursorOffset += m_readCount; // position dans la data décompressée
 
     return Error::Ok();
 }

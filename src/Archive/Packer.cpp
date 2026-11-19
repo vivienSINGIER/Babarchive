@@ -21,7 +21,6 @@ Error Archive::Packer::Open(fs::path _location)
      if (src.is_open() == false)
           return Error::Io("couldn't open archive file", _location);
 
-     // Read helpers require an open archive with a valid location
      m_location = _location;
      m_isOpen = true;
      m_descriptors.clear();
@@ -97,7 +96,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
                if (FileHelper::IsDir(f))
                     continue;
                
-               // Stored names have no extension, it is kept in the file header and restored on unpack
+               // On stocke l'extension séparement
                std::string name = (fs::path(_name) / FileHelper::RelativeTo(f, _file)).lexically_normal().replace_extension().generic_string();
                
                if (CheckDuplicates(m_descriptors, name))
@@ -167,7 +166,6 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
 
      Error err = Error::Io("Failed to add data to archive", m_location);
 
-     // Wrap the data in a stream so it goes through the same write path as files
      std::istringstream in(std::string(_data, _count), std::ios::in | std::ios::binary);
 
      if (Error e = WriteEntry(out, in, _name, "", _flags, _type, _key))
@@ -184,7 +182,6 @@ Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const
 Error Archive::Packer::WriteEntry(std::ofstream& _out, std::istream& _in, std::string const& _name, 
      std::string const& _extension, uint8_t _flags, uint8_t _type, std::string const& _key)
 {
-     // The key alone decides: same rule for every Add
      if (_key.empty())
           _flags &= (uint8_t)~FileFlags::Encrypted;
      else
@@ -207,7 +204,7 @@ Error Archive::Packer::WriteEntry(std::ofstream& _out, std::istream& _in, std::s
 
      if (e)
      {
-          // On laisse ça sera overwrite
+          // On laisse, ça sera overwrite
           _out.clear();
           _out.seekp(d.offset);
           return e;
@@ -219,7 +216,6 @@ Error Archive::Packer::WriteEntry(std::ofstream& _out, std::istream& _in, std::s
 
 Error Archive::Packer::WriteIndex(std::ofstream& _out)
 {
-     // _out must be positioned right after the last written file
      uint64_t end = (uint64_t)_out.tellp();
      m_header.dataSize = end - sizeof(BaseHeader);
      m_header.descriptorListOffset = end;
@@ -236,7 +232,7 @@ Error Archive::Packer::WriteIndex(std::ofstream& _out)
 
      _out.close();
 
-     // If previous too long we cut
+     // Si l'index est trop long, on le coupe
      std::error_code ec;
      if (fs::file_size(m_location, ec) > indexEnd && !ec)
           fs::resize_file(m_location, indexEnd, ec);
@@ -288,7 +284,6 @@ Error Archive::Packer::Remove(std::string_view _name)
      if (Error e = FileHelper::EraseRange(m_location, toRemoveOffset, toRemoveLength))
           return e;
 
-     // Only update the in-memory state once the data is really gone from the file
      m_header.dataSize -= toRemoveLength;
      m_header.descriptorListOffset -= toRemoveLength;
      m_descriptors.erase(m_descriptors.begin() + index);
@@ -520,13 +515,14 @@ Error Archive::Packer::ExtractFile(std::ifstream& _in, std::ofstream& _out, File
           while (ret != Z_STREAM_END && toRead > 0)
           {
                std::streamsize count = (std::streamsize)std::min<uint64_t>(toRead, m_chunkSize);
-               uint64_t storedOffset = _fHeader.fixed.compressedSize - toRead; // compressed bytes already read
+               uint64_t storedOffset = _fHeader.fixed.compressedSize - toRead;
+
                if (!_in.read(chunk.data(), count))
                {
                     inflateEnd(&zs);
                     return Error::Io("unexpected end of archive while reading compressed data", m_location);
                }
-               // The compressed bytes are encrypted: decrypt them before inflating
+
                Encryption::Decrypt(hashMap, chunk.data(), count, storedOffset);
                toRead -= count;
 
@@ -674,7 +670,7 @@ Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _i
 
      std::array<std::string, 3> hashes = Encryption::GetHashes(_key);
      
-     // Read one chunk, compress it, and finish the stream once the input is exhausted
+     // Compress chunk par chunk
      do
      {
           _in.read(inChunk.data(), m_chunkSize);
@@ -686,7 +682,6 @@ Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _i
                return Error::Io("couldn't read file to compress", m_location);
           }
 
-          // CRC on the original data, then compress, then encrypt the compressed bytes
           crc = crc32(crc, reinterpret_cast<const Bytef*>(inChunk.data()), n);
           _fHeader.fixed.uncompressedSize += n;
 
@@ -694,7 +689,6 @@ Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _i
           zs.next_in  = reinterpret_cast<Bytef*>(inChunk.data());
           zs.avail_in = n;
 
-          // Drain deflate output until it has consumed the whole input chunk
           do
           {
                zs.next_out  = reinterpret_cast<Bytef*>(outChunk.data());
@@ -708,9 +702,10 @@ Error Archive::Packer::WriteFileCompressed(std::ofstream& _out, std::istream& _i
                }
 
                const std::size_t produced = outChunk.size() - zs.avail_out;
-               // Position = offset of these bytes in the stored (compressed) data
+  
                if (encrypt)
                     Encryption::Encrypt(hashes, outChunk.data(), produced, _fHeader.fixed.compressedSize);
+
                _out.write(outChunk.data(), produced);
                _fHeader.fixed.compressedSize += produced;
 
