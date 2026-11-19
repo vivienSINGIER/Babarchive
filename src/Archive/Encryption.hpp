@@ -42,7 +42,7 @@ namespace Encryption
             uint64_t index = _offset + i;
             for (int h = 0; h < 3; h++)
             {
-                _data[index] = _data[index] + _hashes[h][index % _hashes[h].length()];
+                _data[i] = _data[i] + _hashes[h][index % _hashes[h].length()];
             }   
         }
     }
@@ -57,7 +57,7 @@ namespace Encryption
             uint64_t index = _offset + i;
             for (int h = 2; h >= 0; h--)
             {
-                _data[index] = _data[index] - _hashes[h][index % _hashes[h].length()];
+                _data[i] = _data[i] - _hashes[h][index % _hashes[h].length()];
             }
         }
     }

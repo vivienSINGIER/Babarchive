@@ -11,7 +11,7 @@ namespace Archive
     
     enum FileType : uint8_t
     {
-        Raw, Binary, Text
+        Raw, Binary, Text, UserStart
     };
     
     enum FileFlags : uint8_t

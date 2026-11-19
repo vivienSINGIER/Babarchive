@@ -157,7 +157,7 @@ Error Archive::Packer::Add(fs::path _file, std::string const& _name, uint8_t _fl
      return Error::Ok();
 }
 
-Error Archive::Packer::Add(char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type, std::string const& _key)
+Error Archive::Packer::Add(const char* _data, uint64_t _count, std::string const& _name, uint8_t _flags, uint8_t _type, std::string const& _key)
 {
      if (m_isOpen == false)
           return Error::Io("cannot write on non created archive file", m_location);

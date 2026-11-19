@@ -145,11 +145,11 @@ Error Archive::CompressedFileStream::Read(char* _data, uint64_t _count)
             return Error::Io("Corrupted compressed data");
     }
 
-    m_readCount = _count - requested;
+    m_readCount = requested - m_stream.avail_out;
     m_readTotal += m_readCount;
 
     if (m_decrypt)
-        Encryption::Decrypt(m_hashKeys, _data, _count, m_cursorOffset);
+        Encryption::Decrypt(m_hashKeys, _data, m_readCount, m_cursorOffset);
 
     m_cursorOffset += m_readCount; // position in the decompressed data
 
