@@ -1,0 +1,234 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"vendor/zlib/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 342,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 352,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 359,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 369,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 377,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 394,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 397,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 401,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 411,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Runtime",
+			"destination" : "lib",
+			"paths" : 
+			[
+				"vendor/zlib/libzd.lib"
+			],
+			"targetId" : "zlib::@df2d97958fd5cb25ad58",
+			"targetIndex" : 10,
+			"targetIsImportLibrary" : true,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Runtime",
+			"destination" : "bin",
+			"paths" : 
+			[
+				"vendor/zlib/libzd.dll"
+			],
+			"targetId" : "zlib::@df2d97958fd5cb25ad58",
+			"targetIndex" : 10,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Development",
+			"destination" : "include",
+			"paths" : 
+			[
+				"cmake-build-debug/vendor/zlib/zconf.h",
+				"vendor/zlib/zlib.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "lib/cmake/zlib",
+			"exportName" : "zlibSharedExport",
+			"exportTargets" : 
+			[
+				{
+					"id" : "zlib::@df2d97958fd5cb25ad58",
+					"index" : 10
+				}
+			],
+			"paths" : 
+			[
+				"vendor/zlib/CMakeFiles/Export/93f1ef598f1f2f8b07b376ab081bbce6/ZLIB-shared.cmake"
+			],
+			"type" : "export"
+		},
+		{
+			"backtrace" : 3,
+			"component" : "Runtime",
+			"destination" : "bin",
+			"isOptional" : true,
+			"paths" : 
+			[
+				"cmake-build-debug/vendor/zlib/libzd.pdb"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 4,
+			"component" : "Development",
+			"destination" : "lib",
+			"paths" : 
+			[
+				"vendor/zlib/libzsd.lib"
+			],
+			"targetId" : "zlibstatic::@df2d97958fd5cb25ad58",
+			"targetIndex" : 13,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 4,
+			"component" : "Development",
+			"destination" : "include",
+			"paths" : 
+			[
+				"cmake-build-debug/vendor/zlib/zconf.h",
+				"vendor/zlib/zlib.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 5,
+			"component" : "Unspecified",
+			"destination" : "lib/cmake/zlib",
+			"exportName" : "zlibStaticExport",
+			"exportTargets" : 
+			[
+				{
+					"id" : "zlibstatic::@df2d97958fd5cb25ad58",
+					"index" : 13
+				}
+			],
+			"paths" : 
+			[
+				"vendor/zlib/CMakeFiles/Export/93f1ef598f1f2f8b07b376ab081bbce6/ZLIB-static.cmake"
+			],
+			"type" : "export"
+		},
+		{
+			"backtrace" : 6,
+			"component" : "Unspecified",
+			"destination" : "lib/cmake/zlib",
+			"paths" : 
+			[
+				"cmake-build-debug/vendor/zlib/ZLIBConfig.cmake",
+				"cmake-build-debug/vendor/zlib/ZLIBConfigVersion.cmake"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 7,
+			"component" : "Docs",
+			"destination" : "share/man/man3",
+			"paths" : 
+			[
+				"vendor/zlib/zlib.3"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 8,
+			"component" : "Docs",
+			"destination" : "share/doc/zlib/zlib",
+			"paths" : 
+			[
+				"vendor/zlib/LICENSE",
+				"vendor/zlib/doc/algorithm.txt",
+				"vendor/zlib/doc/crc-doc.1.0.pdf",
+				"vendor/zlib/doc/rfc1950.txt",
+				"vendor/zlib/doc/rfc1951.txt",
+				"vendor/zlib/doc/rfc1952.txt",
+				"vendor/zlib/doc/txtvsbin.txt"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 9,
+			"component" : "Development",
+			"destination" : "lib/pkgconfig",
+			"paths" : 
+			[
+				"cmake-build-debug/vendor/zlib/zlib.pc"
+			],
+			"type" : "file"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "vendor/zlib",
+		"source" : "vendor/zlib"
+	}
+}

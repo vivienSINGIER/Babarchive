@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_subdirectory(vendor/zlib)
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(vendor/raylib)
 
 # --- Archive library: everything needed to create, read and modify .babar archives ---
 add_library(BabarchiveLib STATIC
@@ -45,16 +47,25 @@ add_executable(BabarchiveTool
 )
 
 # --- Console tool: command line interface built on top of the asset engine ---
-add_executable(BabarsetTool
+add_executable(BabarsetDemo
         src/BabarsetDemo/main.cpp
+        src/BabarsetDemo/RLibHelpers.hpp
+)
+
+add_executable(BabarsetPacker
+    src/BabarsetPacker/main.cpp
 )
 
 target_link_libraries(BabarchiveTool PRIVATE BabarchiveLib)
-target_link_libraries(BabarsetTool PRIVATE BabarsetEngine)
+target_link_libraries(BabarsetDemo PRIVATE BabarsetEngine raylib)
+target_link_libraries(BabarsetPacker PRIVATE BabarsetEngine)
 
 # Run the program from the folder holding this CMakeLists (paths like "Test/..." are relative to it)
 target_compile_definitions(BabarchiveTool PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 set_target_properties(BabarchiveTool PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 
-target_compile_definitions(BabarsetTool PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set_target_properties(BabarsetTool PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(BabarsetDemo PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(BabarsetDemo PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+target_compile_definitions(BabarsetPacker PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(BabarsetPacker PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")

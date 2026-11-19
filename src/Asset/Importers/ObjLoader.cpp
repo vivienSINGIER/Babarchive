@@ -87,6 +87,7 @@ Error Asset::ImportObj(fs::path const& _src, std::vector<char>& _out)
         {
             std::array<float, 2> uv{};
             ss >> uv[0] >> uv[1];
+            uv[1] = 1 - uv[1];
             uvs.push_back(uv);
         }
         else if (header == "vn") // normals

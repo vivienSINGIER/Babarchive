@@ -29,6 +29,13 @@ std::string Error::Format() const
     out += Label(code);
     out += ": ";
     out += message;
+    
+    if (path != "")
+    {
+        out += " (";
+        out += path.string();
+        out += ")";   
+    }
 
     for (std::string const& detail : details)
     {

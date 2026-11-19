@@ -1,0 +1,338 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						4
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-d0094a50bb2071803777.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.20"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4
+					]
+				},
+				{
+					"build" : "vendor/zlib",
+					"childIndexes" : 
+					[
+						2,
+						3
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-vendor.zlib-Debug-f4eedab84cf5075e94ba.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "vendor/zlib",
+					"targetIndexes" : 
+					[
+						10,
+						13
+					]
+				},
+				{
+					"build" : "vendor/zlib/test",
+					"jsonFile" : "directory-vendor.zlib.test-Debug-4266bff181c5f05cff82.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 1,
+					"source" : "vendor/zlib/test",
+					"targetIndexes" : 
+					[
+						6,
+						7,
+						11,
+						12
+					]
+				},
+				{
+					"build" : "vendor/zlib/contrib",
+					"jsonFile" : "directory-vendor.zlib.contrib-Debug-256f26404250ba25c622.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 1,
+					"source" : "vendor/zlib/contrib"
+				},
+				{
+					"build" : "vendor/raylib",
+					"childIndexes" : 
+					[
+						5
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-vendor.raylib-Debug-01e72cf24df344d22ed4.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.22"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 2,
+					"source" : "vendor/raylib"
+				},
+				{
+					"build" : "vendor/raylib/raylib",
+					"childIndexes" : 
+					[
+						6
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-vendor.raylib.raylib-Debug-29777cc3109d9bed0145.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.22"
+					},
+					"parentIndex" : 4,
+					"projectIndex" : 2,
+					"source" : "vendor/raylib/src",
+					"targetIndexes" : 
+					[
+						8
+					]
+				},
+				{
+					"build" : "vendor/raylib/raylib/external/glfw",
+					"childIndexes" : 
+					[
+						7
+					],
+					"jsonFile" : "directory-vendor.raylib.raylib.external.glfw-Debug-f85b802af0b317dd992b.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"parentIndex" : 5,
+					"projectIndex" : 3,
+					"source" : "vendor/raylib/src/external/glfw"
+				},
+				{
+					"build" : "vendor/raylib/raylib/external/glfw/src",
+					"jsonFile" : "directory-vendor.raylib.raylib.external.glfw.src-Debug-0999f96d153c479fdda6.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"parentIndex" : 6,
+					"projectIndex" : 3,
+					"source" : "vendor/raylib/src/external/glfw/src",
+					"targetIndexes" : 
+					[
+						5,
+						9
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						2
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "Babarchive",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						1,
+						2,
+						3
+					],
+					"name" : "zlib",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						6,
+						7,
+						10,
+						11,
+						12,
+						13
+					]
+				},
+				{
+					"childIndexes" : 
+					[
+						3
+					],
+					"directoryIndexes" : 
+					[
+						4,
+						5
+					],
+					"name" : "raylib",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						8
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						6,
+						7
+					],
+					"name" : "GLFW",
+					"parentIndex" : 2,
+					"targetIndexes" : 
+					[
+						5,
+						9
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "BabarchiveLib::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-BabarchiveLib-Debug-4946a6dce0bac74cbb1a.json",
+					"name" : "BabarchiveLib",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "BabarchiveTool::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-BabarchiveTool-Debug-db5979ea04d24c3b84e8.json",
+					"name" : "BabarchiveTool",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "BabarsetDemo::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-BabarsetDemo-Debug-9358c9b2dcc0f878dd0c.json",
+					"name" : "BabarsetDemo",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "BabarsetEngine::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-BabarsetEngine-Debug-f9c5bce950772fca2ac9.json",
+					"name" : "BabarsetEngine",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "BabarsetPacker::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-BabarsetPacker-Debug-390994588a6063546d28.json",
+					"name" : "BabarsetPacker",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "glfw::@878e4ea062a7878da03b",
+					"jsonFile" : "target-glfw-Debug-8f7cf50ecfbe0099032a.json",
+					"name" : "glfw",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "minigzip::@93aaf1d6dfed29e1aabf",
+					"jsonFile" : "target-minigzip-Debug-c4ad96220cf14442baab.json",
+					"name" : "minigzip",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "minigzipstatic::@93aaf1d6dfed29e1aabf",
+					"jsonFile" : "target-minigzipstatic-Debug-0ee3558a893fee1187e8.json",
+					"name" : "minigzipstatic",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 5,
+					"id" : "raylib::@83a3c8edfb4834ace9c0",
+					"jsonFile" : "target-raylib-Debug-149b272c9d3594cce7f2.json",
+					"name" : "raylib",
+					"projectIndex" : 2
+				},
+				{
+					"directoryIndex" : 7,
+					"id" : "update_mappings::@878e4ea062a7878da03b",
+					"jsonFile" : "target-update_mappings-Debug-597a42adb68f7dbde1e1.json",
+					"name" : "update_mappings",
+					"projectIndex" : 3
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "zlib::@df2d97958fd5cb25ad58",
+					"jsonFile" : "target-zlib-Debug-abe36abf13cca0fc5cf1.json",
+					"name" : "zlib",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "zlib_example::@93aaf1d6dfed29e1aabf",
+					"jsonFile" : "target-zlib_example-Debug-c9d64814c389a320d50d.json",
+					"name" : "zlib_example",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "zlib_examplestatic::@93aaf1d6dfed29e1aabf",
+					"jsonFile" : "target-zlib_examplestatic-Debug-03e888f125f6d57d348a.json",
+					"name" : "zlib_examplestatic",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "zlibstatic::@df2d97958fd5cb25ad58",
+					"jsonFile" : "target-zlibstatic-Debug-55ee32574c232e24a05b.json",
+					"name" : "zlibstatic",
+					"projectIndex" : 1
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Repositories/Babarchive/cmake-build-debug",
+		"source" : "C:/Repositories/Babarchive"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 8
+	}
+}

@@ -147,6 +147,31 @@ namespace
         std::string rest;
         return !(ss >> rest);
     }
+    
+    bool ParseInts(std::string_view _v, uint8_t* _out, int _count)
+    {
+        if (_v.size() < 2 || _v.front() != '(' || _v.back() != ')')
+            return false;
+        
+        std::string s(_v.substr(1, _v.size() - 2));
+        
+        for (char& c : s)
+        {
+            if (c == ',' || c == 'f')
+                c = ' ';   
+        }
+        
+        std::istringstream ss(s);
+        for (int i = 0; i < _count; ++i)
+        {
+            int v;
+            if (!(ss >> v) || v < 0 || v > 255)
+                return false;
+            _out[i] = static_cast<uint8_t>(v);
+        }
+        std::string rest;
+        return !(ss >> rest);
+    }
 }
 
 Error Asset::Scene::Load(AssetHandler& _assets, std::string const& _archive, std::string const& _name)
@@ -248,6 +273,8 @@ Error Asset::Scene::Load(AssetHandler& _assets, std::string const& _archive, std
             ok = ParseFloats(value, curr->transform.rotation, 4);
         else if (key == "scale")
             ok = ParseFloats(value, curr->transform.scale, 3);
+        else if (key == "color")
+            ok = ParseInts(value, curr->color, 4);
         else if (key == "mesh" || key == "texture")
         {
             int id;

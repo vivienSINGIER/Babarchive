@@ -10,7 +10,7 @@ position = (0.0, 0.0, 0.0)
 position = (1.0, 0.0, 0.0)
 rotation = (0.0, 0.0, 0.0, 1.0)
 scale = (1.0, 1.0, 1.0)
-texture = ExtResource(1)
+color = (200, 200, 10, 255)
 mesh = ExtResource(2)
 
 [object name="BigCat" parent="Root"]

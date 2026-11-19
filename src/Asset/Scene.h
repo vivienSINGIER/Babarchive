@@ -20,6 +20,7 @@ namespace Asset
         Transform transform;
         Handle mesh;
         Handle texture;
+        uint8_t color[4] = { 255, 255, 255, 255 };
     };
     
     class Scene
