@@ -92,9 +92,7 @@ int Console::Commands::Pack(Args const& _args)
     else if (compressed != "n")
         return UsageError("Argument de compression invalide '" + compressed + "', attendu : y ou n");
 
-    if (key.empty() == false)
-        flags |= Archive::FileFlags::Encrypted;
-
+    // No Encrypted flag here: the library encrypts when, and only when, the key is not empty
     Archive::Packer packer;
     if (Error e = OpenArchive(_args[0], packer))
         return Report(e);
@@ -104,7 +102,7 @@ int Console::Commands::Pack(Args const& _args)
 
     std::cout << "Ajoute : " << _args[2]
               << ((flags & Archive::FileFlags::Compressed) ? " (compresse)" : "")
-              << ((flags & Archive::FileFlags::Encrypted) ? " (chiffre)" : "") << "\n";
+              << (key.empty() ? "" : " (chiffre)") << "\n";
     return 0;
 }
 

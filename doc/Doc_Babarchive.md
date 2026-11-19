@@ -17,7 +17,7 @@ packer.ReadFile("BlueMetalPlate/arm", header, stream);
 
 ## 1. Utiliser l'archive : le `Packer`
 
-Toute la manipulation passe par la classe `Archive::Packer` (`src/Archive/Packer.h`).
+Toute la manipulation passe par la classe `Packer` (`src/Archive/Packer.h`).
 
 ```cpp
 namespace Archive
@@ -63,16 +63,15 @@ Archive::Packer packer;
 
 Error e = packer.Create("Test", "archive");     // crée Test/archive.babar
 if (e)
-    e = packer.Open("Test/archive.babar");      // existe déjà : on l'ouvre
+    e = packer.Open("Test/archive.babar");      // existe déjà donc on l'ouvre
 ```
 
-- `Create(_location, _name)` crée le fichier `_location/_name.babar`, contenant seulement
-  le header archive. Renvoie une erreur si le fichier existe déjà.
+- `Create(_location, _name)` crée le fichier `_location/_name.babar`, contenant seulement le header archive. Il est automatiquement ouvert apres sa création. Si le fichier existe déjà on renvoie une erreur. 
 - `Open(_location)` lit le header et la liste des fichiers d'une archive existante. Renvoie
   une erreur si le fichier n'est pas une archive Babar (magic number invalide). Une version
   différente donne seulement un avertissement.
 
-Toutes les autres méthodes demandent une archive créée ou ouverte.
+Toutes les autres méthodes demandent une archive ouverte au préalable.
 
 ### Ajouter des fichiers
 
@@ -89,10 +88,9 @@ packer.Add(buffer, bufferSize, "level01", Archive::FileFlags::None);
 
 - `Add(_file, _name, _flags, _type)` : ajoute un fichier ou un dossier du disque.
   - **Fichier** : il est enregistré sous le nom `_name`. L'extension du fichier d'origine
-    est conservée à part dans son header, donc `_name` s'écrit **sans extension**.
-  - **Dossier** : chaque fichier du dossier et de ses sous-dossiers est ajouté sous le nom
-    `_name/<chemin relatif sans extension>`, avec des `/` comme séparateurs.
-    Exemple : `Textures/BlueMetalPlate/sub/arm.png` ajouté avec `_name = "BlueMetalPlate"`
+    est conservée à part dans son header, donc `_name` s'écrit **sans extension** !
+  - **Dossier** : chaque fichier du dossier et de ses sous-dossiers est ajouté sous le nom `_name/<chemin relatif>`.
+    **Exemple** : `Textures/BlueMetalPlate/sub/arm.png` ajouté avec `_name = "BlueMetalPlate"`
     devient `BlueMetalPlate/sub/arm`.
 - `Add(_data, _count, _name, _flags, _type)` : ajoute `_count` octets lus depuis un buffer
   mémoire, sans extension. Les données sont copiées en mémoire le temps de l'écriture.
@@ -139,6 +137,7 @@ donne `_unpackLocation/BlueMetalPlate/sub/arm.png`. Un fichier sans extension (d
 ajoutées depuis la mémoire) reçoit l'extension `.bin`.
 
 Pour chaque fichier, `Unpack` :
+
 - déchiffre les données si le fichier porte le flag `Encrypted`, avec la clé donnée pour son
   nom dans `_keyMap` ;
 - décompresse les données si le fichier porte le flag `Compressed` ;
@@ -155,9 +154,11 @@ Pour chaque fichier, `Unpack` :
 
 ### Chiffrement
 
-Un fichier ajouté avec une clé non vide (`_key`) et le flag `Encrypted` est chiffré.
+Un fichier ajouté avec une clé non vide (`_key`) est chiffré, avec les deux `Add`. C'est la
+clé seule qui décide : le flag `Encrypted` passé à `Add` est ignoré, il est ajouté s'il y a
+une clé et retiré sinon.
 Il faut redonner la même clé pour le lire (`ReadFile`) ou l'extraire (`Unpack`).
-Le chiffrement est fait avant la compression, donc un fichier chiffré se compresse mal.
+Les données sont compressées puis chiffrées.
 
 ### Taille des blocs
 
@@ -215,13 +216,10 @@ while (stream->IsFinished() == false)
 Il existe deux implémentations de `FileStream`, choisies automatiquement par `ReadFile`
 selon les flags du fichier :
 
-- **`UncompressedFileStream`** : renvoie les octets tels qu'ils sont stockés. Ne lit jamais
-  au-delà des données du fichier.
-- **`CompressedFileStream`** : décompresse à la volée avec zlib (`inflate`). On ne peut pas
-  se déplacer dans un flux compressé : `SetCursorOffset` n'y a pas de sens.
+- **`UncompressedFileStream`** : renvoie les octets tels qu'ils sont stockés. Ne lit jamais au-delà des données du fichier.
+- **`CompressedFileStream`** : décompresse à la volée avec zlib (`inflate`). On ne peut pas se déplacer dans un flux compressé.
 
-Le flux ne vérifie pas le CRC32 : seul `Unpack` le fait. Pour le vérifier en lecture,
-comparer le CRC des octets lus à `header.fixed.crc32`.
+Le flux ne vérifie pas le CRC32 automatiquement, seul `Unpack` le fait. Pour le vérifier en lecture, il faut comparer le CRC des octets lus à `header.fixed.crc32`.
 
 ---
 
@@ -235,12 +233,12 @@ Les flags se combinent avec `|` et sont stockés sur un octet.
 |----------------|--------|----------------------------------------------------------|
 | `None`         | `0x00` | fichier stocké tel quel                                  |
 | `Compressed`   | `0x01` | fichier compressé avec zlib                              |
-| `Encrypted`    | `0x02` | fichier chiffré avec la clé donnée à `Add`               |
+| `Encrypted`    | `0x02` | fichier chiffré                                          |
 
 ### Types de fichier (`Archive::FileType`)
 
-Le type est seulement stocké dans le header du fichier : il ne change pas la façon dont le
-fichier est écrit ou lu. Par défaut, `Add` utilise `Binary`.
+Le type est seulement stocké dans le header du fichier. Il ne change pas la façon dont le
+fichier est écrit ou lu. Il est `Binary` par défaut.
 
 | Type     | Valeur | Contenu          |
 |----------|--------|------------------|
@@ -253,7 +251,7 @@ fichier est écrit ou lu. Par défaut, `Add` utilise `Binary`.
 ## 4. Format du fichier d'archive
 
 Tous les entiers sont en little-endian (ordre natif x86/x64). Les chaînes sont stockées
-sans `\0` final, leur longueur est donnée par le champ qui les précède.
+sans `\0` final, leur longueur est donnée par le champ juste avant.
 
 Vue d'ensemble :
 
@@ -272,24 +270,21 @@ Vue d'ensemble :
 Pour lire un fichier par son nom :
 
 1. lire le header archive pour trouver `descriptorListOffset` ;
-2. lire les File Descriptor les uns après les autres, de `descriptorListOffset` jusqu'à la
-   fin du fichier, jusqu'à trouver `name` ;
-3. aller à `offset` pour lire le header fichier, puis les `compressedSize` octets de données
-   qui le suivent.
+2. lire les File Descriptor les uns après les autres, de `descriptorListOffset` jusqu'à la fin du fichier, jusqu'à trouver `name` ;
+3. aller à `offset` pour lire le header fichier, puis les `compressedSize` octets de données qui le suivent.
 
 ### Header archive (`BaseHeader`, 24 octets)
 
 | Type   | Champ                | Rôle                                                       |
 |--------|----------------------|------------------------------------------------------------|
-| uint32 | magicNumber          | octets `B A B A` (`0x41424142`) : identifie une archive Babar |
+| uint32 | magicNumber          | `B A B A` (`0x41424142`)                                   |
 | uint32 | version              | version du format, actuellement `1`                        |
-| uint64 | dataSize             | taille totale des fichiers (headers + données), soit `descriptorListOffset - 24` |
+| uint64 | dataSize             | taille totale des fichiers (headers + données)             |
 | uint64 | descriptorListOffset | position de la liste des File Descriptor                   |
 
 ### Header fichier (`FileHeader`)
 
-Placé juste avant les données de chaque fichier. La partie fixe fait 24 octets, sans
-alignement.
+Placé juste avant les données de chaque fichier. La partie fixe fait 24 octets, sans alignement.
 
 | Type   | Champ            | Rôle                                                           |
 |--------|------------------|----------------------------------------------------------------|
@@ -297,13 +292,17 @@ alignement.
 | uint64 | compressedSize   | taille des données stockées (égale à `uncompressedSize` sans compression) |
 | uint8  | fileType         | type de fichier (`FileType`)                                   |
 | uint8  | flags            | flags du fichier (`FileFlags`)                                 |
-| uint32 | crc32            | CRC32 des données **décompressées**, pour détecter la corruption |
+| uint32 | crc32            | CRC32 des données **décompressées**                            |
 | uint16 | extensionLength  | longueur de l'extension                                        |
 | string | extension        | extension d'origine en minuscules, avec le point (`.png`, `.txt`), vide pour des données mémoire |
 
-Les données suivent directement le header. Avec le flag `Compressed`, elles forment un flux
-zlib complet (format zlib avec en-tête, comme produit par `deflateInit`), décodable avec
-`inflate`.
+Les données suivent directement le header.
+Si le flag `Compressed` est présent, elles forment un flux zlib complet (format zlib avec en-tête, comme produit par `deflateInit`), décodable avec `inflate`.
+
+Avec le flag `Encrypted`, ce sont les données stockées qui sont chiffrées :
+Le flux zlib pour un fichier compressé, les données d'origine sinon.
+La position utilisée pour le chiffrement est celle de l'octet dans ces données stockées, et `compressedSize` reste leur taille.
+Le CRC32 reste celui des données d'origine et non pas des données compressées et/ou chiffrées.
 
 ### File Descriptor (`FileDescriptor`)
 
@@ -312,45 +311,42 @@ Un par fichier, dans l'ordre où les fichiers sont rangés dans l'archive.
 | Type   | Champ      | Rôle                                                   |
 |--------|------------|--------------------------------------------------------|
 | uint32 | nameLength | longueur du nom                                        |
-| string | name       | nom du fichier dans l'archive, sans extension, séparateur `/` |
-| uint64 | offset     | position du header fichier depuis le début de l'archive |
+| string | name       | nom du fichier dans l'archive, **sans extension**, séparateur `/` |
+| uint64 | offset     | position du header fichier depuis le début de l'archive|
 
-La liste n'a pas de nombre d'entrées : elle s'arrête à la fin du fichier.
+La liste n'a pas de nombre d'entrées. Elle s'arrête à la fin du fichier.
 
 ---
 
 ## 5. Ligne de commande
 
-L'exécutable `Babarchive` est une interface console construite au-dessus de la lib : la lib
-`BabarchiveLib` (`src/Archive`, `src/Core`) ne dépend pas de la console (`src/Console`) et
-peut être utilisée seule dans un autre projet.
+L'exécutable `Babarchive` est une interface console construite au-dessus de la lib.
+La lib `BabarchiveLib` (`src/Archive`, `src/Core`) ne dépend pas de la console (`src/Console`) et peut être utilisée seule dans un autre projet.
 
 ```text
 Babarchive <commande> <arguments>
 ```
 
-`<arg>` est obligatoire, `(arg)` est optionnel.
+`<arg>` est un argument obligatoire, `(arg)` est optionnel.
 
 | Commande             | Arguments                                                   | Effet |
 |----------------------|-------------------------------------------------------------|-------|
 | `--help` / `--h`     | `(commande)`                                                | aide de toutes les commandes, ou d'une seule |
 | `--create` / `--c`   | `<dossier> <nom>`                                           | crée l'archive vide `<dossier>/<nom>.babar` |
-| `--pack` / `--p`     | `<archive> <fichier \| dossier> <nom> (compresse y/n) (clé)` | ajoute un fichier ou un dossier sous `<nom>` (sans extension). Compressé avec `y` (par défaut `n`), chiffré si une clé est donnée |
+| `--pack` / `--p`     | `<archive> <fichier \| dossier> <nom> (compresse y/n) (clé)`| ajoute un fichier ou un dossier sous `<nom>` (sans extension). Compressé avec `y` (par défaut `n`), chiffré si une clé est donnée |
 | `--unpack` / `--u`   | `<archive> <dossier>`                                       | extrait toute l'archive, demande la clé de chaque fichier chiffré |
 | `--remove` / `--r`   | `<archive> <nom>`                                           | retire un fichier |
 | `--list` / `--l`     | `<archive>`                                                 | tableau des fichiers : extension, taille, taille stockée, ratio, compressé, chiffré |
 | `--read` / `--rd`    | `<archive> <nom> (fichier de sortie)`                       | lit un fichier vers un fichier de sortie, ou vers la sortie standard. Demande la clé s'il est chiffré, et vérifie le CRC32 |
 | `--hex` / `--x`      | `<fichier> (octets par ligne)`                              | affiche n'importe quel fichier en hexadécimal (16 octets par ligne par défaut) |
 
-Les clés sont demandées sur l'entrée standard (une par ligne), et les questions sont écrites
-sur la sortie d'erreur : `--read` vers la sortie standard ne contient que les données du
-fichier. Une clé peut contenir des espaces : la mettre entre guillemets dans `--pack`.
+Les clés sont demandées ligne par ligne.
+`--read` vers la sortie standard ne contient que les données du fichier.
+Si une clé contient des espaces il faut la mettre entre guillemets dans `--pack`.
 
-Le code de retour vaut `0` en cas de succès, et une valeur non nulle sinon (commande
-inconnue, arguments manquants ou en trop, archive ou fichier introuvable, mauvaise clé…).
+Le code de retour vaut `0` en cas de succès, et une valeur non nulle sinon (commande inconnue, arguments manquants ou en trop, archive ou fichier introuvable, mauvaise clé…).
 
-Les chemins relatifs partent du dossier du projet (celui du `CMakeLists.txt`), pas du
-dossier où la commande est lancée : le programme s'y place au démarrage.
+Les chemins relatifs partent du dossier du projet (celui du `CMakeLists.txt`), pas du dossier où la commande est lancée.
 
 Exemple complet :
 
