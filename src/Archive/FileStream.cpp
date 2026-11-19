@@ -68,11 +68,11 @@ Error Archive::UncompressedFileStream::Read(char* _data, uint64_t _count)
     
     uint64_t toRead = std::min<uint64_t>(_count, m_count - m_cursorOffset);
     m_file.read(_data, (std::streamsize)toRead);
-    
-    if (m_decrypt)
-        Encryption::Decrypt(m_hashKeys, _data, _count, m_cursorOffset);
-    
     m_readCount = m_file.gcount();
+
+    if (m_decrypt)
+        Encryption::Decrypt(m_hashKeys, _data, m_readCount, m_cursorOffset);
+
     m_readTotal += m_readCount;
     m_cursorOffset += m_readCount;
 
@@ -132,6 +132,11 @@ Error Archive::CompressedFileStream::Read(char* _data, uint64_t _count)
             if (got == 0)
                 return Error::Io("Failed to read compressed data");
 
+            // The stored compressed bytes are encrypted: decrypt them before inflating.
+            // Position = compressed bytes already read (m_count is the compressed size)
+            if (m_decrypt)
+                Encryption::Decrypt(m_hashKeys, m_in, got, m_count - m_compressedLeft);
+
             m_compressedLeft -= got;
             m_stream.next_in = reinterpret_cast<Bytef*>(m_in);
             m_stream.avail_in = (uInt)got;
@@ -142,14 +147,11 @@ Error Archive::CompressedFileStream::Read(char* _data, uint64_t _count)
         if (ret == Z_STREAM_END)
             m_finished = true;
         else if (ret != Z_OK)
-            return Error::Io("Corrupted compressed data");
+            return Error::Io(m_decrypt ? "Corrupted compressed data (wrong key?)" : "Corrupted compressed data");
     }
 
     m_readCount = requested - m_stream.avail_out;
     m_readTotal += m_readCount;
-
-    if (m_decrypt)
-        Encryption::Decrypt(m_hashKeys, _data, m_readCount, m_cursorOffset);
 
     m_cursorOffset += m_readCount; // position in the decompressed data
 

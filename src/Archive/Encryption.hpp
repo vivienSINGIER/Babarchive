@@ -37,6 +37,8 @@ namespace Encryption
         if (_hashes[0].empty())
             return;
         
+        // _data is a chunk of the file: _data[i] is the byte at position _offset + i in the file,
+        // the position only selects the key bytes
         for (uint64_t i = 0; i < _dataLength; i++)
         {
             uint64_t index = _offset + i;
