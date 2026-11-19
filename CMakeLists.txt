@@ -44,8 +44,17 @@ add_executable(BabarchiveTool
     src/HexViewer/HexViewer.h   src/HexViewer/HexViewer.cpp
 )
 
+# --- Console tool: command line interface built on top of the asset engine ---
+add_executable(BabarsetTool
+        src/BabarsetDemo/main.cpp
+)
+
 target_link_libraries(BabarchiveTool PRIVATE BabarchiveLib)
+target_link_libraries(BabarsetTool PRIVATE BabarsetEngine)
 
 # Run the program from the folder holding this CMakeLists (paths like "Test/..." are relative to it)
 target_compile_definitions(BabarchiveTool PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 set_target_properties(BabarchiveTool PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+target_compile_definitions(BabarsetTool PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(BabarsetTool PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
