@@ -23,8 +23,8 @@ target_include_directories(BabarchiveLib PUBLIC src)
 target_link_libraries(BabarchiveLib PUBLIC ZLIB::ZLIBSTATIC)
 
 # --- Console tool: command line interface built on top of the library ---
-add_executable(Babarchive
-    src/main.cpp
+add_executable(BabarchiveTool
+    src/Console/main.cpp
 
     src/Console/Console.h       src/Console/Console.cpp
     src/Console/Commands.h      src/Console/Commands.cpp
@@ -32,8 +32,8 @@ add_executable(Babarchive
     src/HexViewer/HexViewer.h   src/HexViewer/HexViewer.cpp
 )
 
-target_link_libraries(Babarchive PRIVATE BabarchiveLib)
+target_link_libraries(BabarchiveTool PRIVATE BabarchiveLib)
 
 # Run the program from the folder holding this CMakeLists (paths like "Test/..." are relative to it)
-target_compile_definitions(Babarchive PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-set_target_properties(Babarchive PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(BabarchiveTool PRIVATE BABARCHIVE_WORKING_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(BabarchiveTool PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
